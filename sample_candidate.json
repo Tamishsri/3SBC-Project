@@ -1,0 +1,53 @@
+{
+  "personal": {
+    "first_name": "Tamish",
+    "last_name": "Sridatta",
+    "email": "tamish.sridatta@example.com",
+    "phone": "+91-9876543210",
+    "linkedin_url": "https://linkedin.com/in/tamishsri",
+    "location": "Chennai, India",
+    "website": "https://tamishsri.dev"
+  },
+  "experience": [
+    {
+      "company": "3SBC Technologies",
+      "title": "Software Developer",
+      "start_date": "2024-06",
+      "end_date": null,
+      "description": "Building semi-automated recruitment tools using Python, Playwright, and FastAPI.",
+      "location": "Chennai, India"
+    },
+    {
+      "company": "TechStart Inc",
+      "title": "Junior Developer Intern",
+      "start_date": "2023-06",
+      "end_date": "2024-05",
+      "description": "Developed REST APIs and automated testing pipelines.",
+      "location": "Remote"
+    }
+  ],
+  "education": [
+    {
+      "institution": "Anna University",
+      "degree": "B.E. Computer Science and Engineering",
+      "field_of_study": "Computer Science",
+      "degree_level": "bachelor",
+      "graduation_date": "2025-05",
+      "gpa": "8.5"
+    }
+  ],
+  "skills": [
+    "Python",
+    "Playwright",
+    "FastAPI",
+    "JavaScript",
+    "React",
+    "PostgreSQL",
+    "Git",
+    "Docker"
+  ],
+  "certifications": [
+    "AWS Cloud Practitioner"
+  ],
+  "resume_file_path": null
+}
