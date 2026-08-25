@@ -101,12 +101,9 @@ class BrowserSession:
         context = contexts[0]
         pages = context.pages
         if not pages:
-            raise BrowserConnectionError(
-                port=self.port,
-                original_error=RuntimeError(
-                    "No tabs/pages found in the browser. Open a tab and navigate to an ATS form."
-                ),
-            )
+            logger.info("No active tabs found. Creating a new tab...")
+            page = await context.new_page()
+            return page
 
         # Return the last (most recently active) page
         page = pages[-1]

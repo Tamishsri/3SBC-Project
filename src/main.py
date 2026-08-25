@@ -17,6 +17,18 @@ import asyncio
 import logging
 import sys
 
+# Ensure UTF-8 stdout/stderr on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
@@ -28,7 +40,7 @@ from src.browser import BrowserSession
 from src.config import Config, get_config
 from src.exceptions import ATSFillerError
 
-console = Console()
+console = Console(safe_box=True)
 logger = logging.getLogger("ats_filler")
 
 
@@ -147,12 +159,13 @@ async def run(args: argparse.Namespace) -> int:
 
     async with BrowserSession(port=port) as session:
         # Get or navigate to page
+        page = await session.get_active_page()
         if args.url:
-            page = await session.get_active_page()
             logger.info("Navigating to: %s", args.url)
-            await page.goto(args.url, wait_until="domcontentloaded")
-        else:
-            page = await session.get_active_page()
+            try:
+                await page.goto(args.url, wait_until="domcontentloaded", timeout=15000)
+            except Exception as e:
+                console.print(f"[bold yellow]Warning:[/] Could not navigate to URL ({e}). Using current page: {page.url}")
 
         console.print(f"  Active page: [link]{page.url}[/link]")
 
@@ -196,8 +209,8 @@ def main() -> None:
     # Print banner
     banner = Text()
     banner.append("\n  ATS Form Filler v1.0\n", style="bold cyan")
-    banner.append("  Semi-Automated • Human-Controlled\n", style="dim")
-    banner.append("  ⛔ NEVER auto-submits\n", style="bold red")
+    banner.append("  Semi-Automated | Human-Controlled\n", style="dim")
+    banner.append("  [!] NEVER auto-submits - Final Review is Always Yours\n", style="bold red")
     console.print(Panel(banner, border_style="cyan"))
 
     try:
