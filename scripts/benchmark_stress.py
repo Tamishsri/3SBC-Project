@@ -79,11 +79,28 @@ def generate_benchmark_profiles(count: int = 100) -> list[dict]:
                 {
                     "institution": f"University of Technology {i % 8}",
                     "degree": "B.S. in Computer Science",
-                    "end_date": "2019",
+                    "graduation_date": "2019-05",
                 }
             ],
             "skills": skills + [f"CustomSkill_{i % 20}"],
             "cover_letter": f"I am writing to express my strong enthusiasm for the {title} position.",
+            "work_authorization": {
+                "authorized_to_work": True,
+                "requires_sponsorship": (i % 3 == 0),
+                "notice_period_days": 15 * (i % 4),
+                "expected_salary": f"${120 + (i % 50)}k",
+                "willing_to_relocate": True,
+            },
+            "demographics": {
+                "gender": "Male" if i % 2 == 0 else "Female",
+                "race_ethnicity": "Asian" if i % 3 == 0 else "Decline to self-identify",
+                "veteran_status": "I am not a protected veteran",
+                "disability_status": "No, I don't have a disability",
+            },
+            "custom_answers": {
+                "notice period": f"{15 * (i % 4)} days",
+                "preferred stack": "Python/Playwright",
+            },
         }
         profiles.append(profile)
 

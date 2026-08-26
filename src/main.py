@@ -483,6 +483,7 @@ async def run_batch_mode(args: argparse.Namespace, port: int) -> int:
                 job_url=args.url,
                 user_id=args.user_id,
                 human_mode=args.human_mode,
+                multi_page=args.multi_page,
                 screenshot=args.screenshot,
             )
             for i, f in enumerate(json_files)
@@ -499,6 +500,7 @@ async def run_batch_mode(args: argparse.Namespace, port: int) -> int:
             port=port,
             url=args.url,
             human_mode=args.human_mode,
+            multi_page=args.multi_page,
             screenshot=args.screenshot,
             delay_seconds=args.batch_delay,
         )

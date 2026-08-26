@@ -164,11 +164,13 @@ class SmartRecruitersFiller(ATSFormFiller):
         self.logger.info("--- Filling Links ---")
         await self.safe_fill_with_fallbacks(
             [self.page.locator(s) for s in self.SELECTORS["linkedin"]],
-            personal.linkedin_url, "LinkedIn URL",
+            self.validate_url_field(personal.linkedin_url, "LinkedIn URL"),
+            "LinkedIn URL",
         )
         await self.safe_fill_with_fallbacks(
             [self.page.locator(s) for s in self.SELECTORS["website"]],
-            personal.website, "Website/Portfolio",
+            self.validate_url_field(personal.website, "Website/Portfolio"),
+            "Website/Portfolio",
         )
 
         # --- Cover Letter ---

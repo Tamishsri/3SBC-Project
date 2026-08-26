@@ -270,7 +270,7 @@ def generate_html_dashboard(output_path: Path | None = None) -> Path:
         </div>
 
         <footer>
-            ATS Form Filler v2.2 | Built with Playwright & Python | Core Rule: Never Auto-Submits
+            ATS Form Filler v2.4 | Built with Playwright & Python | Core Rule: Never Auto-Submits
         </footer>
     </div>
 

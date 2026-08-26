@@ -36,12 +36,18 @@ SAMPLES = [
                 {
                     "institution": "University of California, Berkeley",
                     "degree": "B.S. in Computer Science",
-                    "end_date": "2019"
+                    "graduation_date": "2019-05"
                 }
             ],
             "skills": ["Python", "Go", "Distributed Systems", "PostgreSQL", "Kafka", "Docker", "Kubernetes", "AWS"],
             "certifications": ["AWS Certified Solutions Architect - Professional"],
-            "cover_letter": "I am eager to contribute my backend systems expertise to your engineering team."
+            "cover_letter": "I am eager to contribute my backend systems expertise to your engineering team.",
+            "work_authorization": {
+                "authorized_to_work": True,
+                "requires_sponsorship": False,
+                "notice_period_days": 14,
+                "expected_salary": "$165,000"
+            }
         }
     },
     {
@@ -69,12 +75,18 @@ SAMPLES = [
                 {
                     "institution": "Technical University of Munich (TUM)",
                     "degree": "M.Sc. in Data Engineering and Analytics",
-                    "end_date": "2021"
+                    "graduation_date": "2021-06"
                 }
             ],
             "skills": ["Python", "PyTorch", "MLOps", "FastAPI", "TensorFlow", "Scikit-Learn", "SQL"],
             "certifications": ["Google Cloud Professional Data Engineer"],
-            "cover_letter": "My background in machine learning and scalable model serving directly aligns with your requirements."
+            "cover_letter": "My background in machine learning and scalable model serving directly aligns with your requirements.",
+            "work_authorization": {
+                "authorized_to_work": True,
+                "requires_sponsorship": False,
+                "notice_period_days": 30,
+                "expected_salary": "€85,000"
+            }
         }
     },
     {
@@ -102,12 +114,18 @@ SAMPLES = [
                 {
                     "institution": "National Institute of Technology Karnataka",
                     "degree": "B.Tech in Information Technology",
-                    "end_date": "2019"
+                    "graduation_date": "2019-05"
                 }
             ],
             "skills": ["Playwright", "Selenium", "Python", "pytest", "CI/CD", "GitHub Actions", "Docker", "API Testing"],
             "certifications": ["ISTQB Advanced Test Automation Engineer"],
-            "cover_letter": "I bring 5+ years of automated testing and browser automation leadership."
+            "cover_letter": "I bring 5+ years of automated testing and browser automation leadership.",
+            "work_authorization": {
+                "authorized_to_work": True,
+                "requires_sponsorship": False,
+                "notice_period_days": 60,
+                "expected_salary": "28 LPA"
+            }
         }
     }
 ]

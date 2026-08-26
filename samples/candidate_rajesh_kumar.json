@@ -21,7 +21,7 @@
     {
       "institution": "National Institute of Technology Karnataka",
       "degree": "B.Tech in Information Technology",
-      "end_date": "2019"
+      "graduation_date": "2019-05"
     }
   ],
   "skills": [
@@ -37,5 +37,11 @@
   "certifications": [
     "ISTQB Advanced Test Automation Engineer"
   ],
-  "cover_letter": "I bring 5+ years of automated testing and browser automation leadership."
+  "cover_letter": "I bring 5+ years of automated testing and browser automation leadership.",
+  "work_authorization": {
+    "authorized_to_work": true,
+    "requires_sponsorship": false,
+    "notice_period_days": 60,
+    "expected_salary": "28 LPA"
+  }
 }

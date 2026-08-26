@@ -21,7 +21,7 @@
     {
       "institution": "Technical University of Munich (TUM)",
       "degree": "M.Sc. in Data Engineering and Analytics",
-      "end_date": "2021"
+      "graduation_date": "2021-06"
     }
   ],
   "skills": [
@@ -36,5 +36,11 @@
   "certifications": [
     "Google Cloud Professional Data Engineer"
   ],
-  "cover_letter": "My background in machine learning and scalable model serving directly aligns with your requirements."
+  "cover_letter": "My background in machine learning and scalable model serving directly aligns with your requirements.",
+  "work_authorization": {
+    "authorized_to_work": true,
+    "requires_sponsorship": false,
+    "notice_period_days": 30,
+    "expected_salary": "\u20ac85,000"
+  }
 }

@@ -102,3 +102,20 @@ def test_human_mode_enabled(sample_candidate):
     page = MagicMock()
     filler = GreenhouseFiller(page, sample_candidate, human_mode=True)
     assert filler.human_mode is True
+
+
+def test_multi_page_default_is_false(sample_candidate):
+    """multi_page should default to False when not specified."""
+    from unittest.mock import MagicMock
+    page = MagicMock()
+    page.url = "https://boards.greenhouse.io/test"
+    filler = GreenhouseFiller(page, sample_candidate)
+    assert filler.multi_page is False
+
+
+def test_multi_page_enabled(sample_candidate):
+    """multi_page should be True when passed as kwarg."""
+    from unittest.mock import MagicMock
+    page = MagicMock()
+    filler = GreenhouseFiller(page, sample_candidate, multi_page=True)
+    assert filler.multi_page is True

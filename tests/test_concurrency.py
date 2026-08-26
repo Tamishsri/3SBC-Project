@@ -111,3 +111,33 @@ async def test_worker_pool_dispatches_concurrently():
                 assert all(o.success for o in outcomes)
                 assert outcomes[0].user_id == "user_0"
                 assert outcomes[3].user_id == "user_3"
+
+
+@pytest.mark.asyncio
+async def test_worker_pool_passes_multi_page():
+    """Verify ConcurrentWorkerPool forwards multi_page setting to get_filler."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        fpath = Path(tmp_dir) / "cand.json"
+        fpath.write_text('{"personal": {"first_name": "A", "last_name": "B", "email": "a@b.com"}}', encoding="utf-8")
+        task = TaskItem(task_id="t1", data_file=fpath, multi_page=True)
+
+        mock_result = FillResult(ats_platform="Workday", page_url="http://workday.com", filled_fields=["First Name"])
+
+        with patch("src.worker_pool.BrowserSession") as mock_session_cls:
+            mock_session = AsyncMock()
+            mock_page = AsyncMock()
+            mock_session.create_isolated_page.return_value = mock_page
+            mock_session_cls.return_value.__aenter__.return_value = mock_session
+
+            with patch("src.worker_pool.get_filler") as mock_get_filler:
+                mock_filler = AsyncMock()
+                mock_filler.fill.return_value = mock_result
+                mock_get_filler.return_value = mock_filler
+
+                pool = ConcurrentWorkerPool(max_concurrency=1, port=9222)
+                outcomes = await pool.run_tasks([task])
+
+                assert len(outcomes) == 1
+                mock_get_filler.assert_called_once()
+                _, kwargs = mock_get_filler.call_args
+                assert kwargs["multi_page"] is True

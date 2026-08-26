@@ -171,3 +171,47 @@ class TestFillResult:
             page_url="https://boards.greenhouse.io/test",
         )
         assert result.success_rate == 0.0
+
+
+class TestWorkAuthAndDemographics:
+    """Tests for WorkAuthorization and Demographics models."""
+
+    def test_default_work_authorization(self):
+        from src.models import WorkAuthorization
+        auth = WorkAuthorization()
+        assert auth.authorized_to_work is True
+        assert auth.requires_sponsorship is False
+        assert auth.notice_period_days is None
+        assert auth.expected_salary is None
+        assert auth.willing_to_relocate is True
+
+    def test_custom_work_authorization(self):
+        from src.models import WorkAuthorization
+        auth = WorkAuthorization(
+            authorized_to_work=False,
+            requires_sponsorship=True,
+            notice_period_days=30,
+            expected_salary="$120k",
+            willing_to_relocate=False,
+        )
+        assert auth.authorized_to_work is False
+        assert auth.requires_sponsorship is True
+        assert auth.notice_period_days == 30
+        assert auth.expected_salary == "$120k"
+        assert auth.willing_to_relocate is False
+
+    def test_default_demographics(self):
+        from src.models import Demographics
+        demo = Demographics()
+        assert "Decline" in demo.gender
+        assert "Decline" in demo.race_ethnicity
+        assert demo.veteran_status == "I am not a protected veteran"
+        assert "not wish" in demo.disability_status.lower()
+
+    def test_candidate_data_with_custom_answers(self):
+        cand = CandidateData(
+            personal=PersonalInfo(first_name="A", last_name="B", email="a@b.com"),
+            custom_answers={"notice": "30 days", "salary": "$150k"},
+        )
+        assert cand.custom_answers["notice"] == "30 days"
+        assert cand.custom_answers["salary"] == "$150k"

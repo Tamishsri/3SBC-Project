@@ -47,6 +47,7 @@ async def process_single_candidate(
     port: int,
     url: str | None = None,
     human_mode: bool = False,
+    multi_page: bool = False,
     screenshot: bool = False,
     delay_seconds: float = 5.0,
 ) -> BatchResult:
@@ -57,6 +58,7 @@ async def process_single_candidate(
         port: Browser debugging port.
         url: Optional URL to navigate to before filling.
         human_mode: Enable human-like typing.
+        multi_page: Enable multi-step wizard auto-advancement.
         screenshot: Take screenshot after fill.
         delay_seconds: Seconds to wait BEFORE this candidate (rate limiting).
 
@@ -89,7 +91,7 @@ async def process_single_candidate(
                 except Exception as e:
                     logger.warning("[BATCH] Navigation warning for %s: %s", name, e)
 
-            filler = await get_filler(page, candidate, human_mode=human_mode)
+            filler = await get_filler(page, candidate, human_mode=human_mode, multi_page=multi_page)
             result = await filler.fill()
 
             if screenshot:
@@ -138,6 +140,7 @@ async def run_batch(
     port: int,
     url: str | None = None,
     human_mode: bool = False,
+    multi_page: bool = False,
     screenshot: bool = False,
     delay_seconds: float = 5.0,
 ) -> list[BatchResult]:
@@ -151,6 +154,7 @@ async def run_batch(
         port: Browser debugging port.
         url: Optional job URL to navigate to for each candidate.
         human_mode: Enable human-like typing for all candidates.
+        multi_page: Enable multi-step wizard auto-advancement.
         screenshot: Take screenshot after each fill.
         delay_seconds: Rate-limit delay between candidates.
 
@@ -168,7 +172,8 @@ async def run_batch(
         f"[bold cyan]BATCH MODE[/]\n"
         f"Directory: [dim]{batch_dir}[/]\n"
         f"Candidates: [bold]{len(json_files)}[/]\n"
-        f"Rate limit: [dim]{delay_seconds}s between each[/]",
+        f"Rate limit: [dim]{delay_seconds}s between each[/]\n"
+        f"Multi-page Wizard: [dim]{'ON' if multi_page else 'OFF'}[/]",
         title="[bold]Batch Processing",
         border_style="cyan",
     ))
@@ -192,6 +197,7 @@ async def run_batch(
                 port=port,
                 url=url,
                 human_mode=human_mode,
+                multi_page=multi_page,
                 screenshot=screenshot,
                 delay_seconds=0.0 if is_first else delay_seconds,
             )

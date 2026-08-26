@@ -37,6 +37,7 @@ class TaskItem:
     job_url: str | None = None
     user_id: str = "default"
     human_mode: bool = False
+    multi_page: bool = False
     screenshot: bool = False
 
 
@@ -86,7 +87,7 @@ class ConcurrentWorkerPool:
             try:
                 page = await session.create_isolated_page(item.job_url)
 
-                filler = await get_filler(page, candidate, human_mode=item.human_mode)
+                filler = await get_filler(page, candidate, human_mode=item.human_mode, multi_page=item.multi_page)
                 result = await filler.fill()
 
                 if item.screenshot:
