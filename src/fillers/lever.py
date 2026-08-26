@@ -170,26 +170,26 @@ class LeverFiller(ATSFormFiller):
 
         await self.safe_fill_with_fallbacks(
             [self.page.locator(s) for s in self.SELECTORS["linkedin"]],
-            personal.linkedin_url,
+            self.validate_url_field(personal.linkedin_url, "LinkedIn URL"),
             "LinkedIn URL",
         )
 
         await self.safe_fill_with_fallbacks(
             [self.page.locator(s) for s in self.SELECTORS["github"]],
-            getattr(personal, "github_url", None),
+            self.validate_url_field(personal.github_url, "GitHub URL"),
             "GitHub URL",
         )
 
         await self.safe_fill_with_fallbacks(
             [self.page.locator(s) for s in self.SELECTORS["portfolio"]],
-            personal.website,
+            self.validate_url_field(personal.website, "Portfolio/Website"),
             "Portfolio/Website",
         )
 
         # --- Cover Letter ---
         self.logger.info("--- Filling Cover Letter ---")
 
-        cover_letter_text = getattr(self.candidate, "cover_letter", None)
+        cover_letter_text = self.candidate.cover_letter
         if not cover_letter_text and self.candidate.experience:
             recent = self.candidate.experience[0]
             cover_letter_text = (
@@ -204,6 +204,9 @@ class LeverFiller(ATSFormFiller):
             cover_letter_text,
             "Cover Letter / Additional Info",
         )
+
+        # Check for multi-page form
+        await self.detect_next_page()
 
         # HALT — Never submit
         return self.halt_for_review()

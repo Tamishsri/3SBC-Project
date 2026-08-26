@@ -72,10 +72,33 @@ async def test_unsupported_ats(sample_candidate):
 
 def test_filler_selectors_structure():
     """Verify that all fillers define required selectors with fallbacks."""
-    for filler_cls in [GreenhouseFiller, LeverFiller]:
-        assert hasattr(filler_cls, "SELECTORS")
+    from src.fillers.workday import WorkdayFiller
+    from src.fillers.smartrecruiters import SmartRecruitersFiller
+
+    for filler_cls in [GreenhouseFiller, LeverFiller, WorkdayFiller, SmartRecruitersFiller]:
+        assert hasattr(filler_cls, "SELECTORS"), f"{filler_cls.__name__} missing SELECTORS"
         selectors = filler_cls.SELECTORS
         assert isinstance(selectors, dict)
         for field_name, selector_list in selectors.items():
             assert isinstance(selector_list, list)
-            assert len(selector_list) > 0, f"{filler_cls.__name__} has empty selector list for {field_name}"
+            assert len(selector_list) > 0, (
+                f"{filler_cls.__name__} has empty selector list for {field_name}"
+            )
+
+
+def test_human_mode_default_is_false(sample_candidate):
+    """human_mode should default to False when not specified."""
+    from unittest.mock import MagicMock
+    page = MagicMock()
+    page.url = "https://boards.greenhouse.io/test"
+
+    filler = GreenhouseFiller(page, sample_candidate)
+    assert filler.human_mode is False
+
+
+def test_human_mode_enabled(sample_candidate):
+    """human_mode should be True when passed as kwarg."""
+    from unittest.mock import MagicMock
+    page = MagicMock()
+    filler = GreenhouseFiller(page, sample_candidate, human_mode=True)
+    assert filler.human_mode is True

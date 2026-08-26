@@ -241,21 +241,24 @@ class GreenhouseFiller(ATSFormFiller):
 
         await self.safe_fill_with_fallbacks(
             [ctx.locator(s) for s in self.SELECTORS["linkedin"]],
-            personal.linkedin_url,
+            self.validate_url_field(personal.linkedin_url, "LinkedIn URL"),
             "LinkedIn URL",
         )
 
         await self.safe_fill_with_fallbacks(
             [ctx.locator(s) for s in self.SELECTORS["github"]],
-            getattr(personal, "github_url", None),
+            self.validate_url_field(personal.github_url, "GitHub URL"),
             "GitHub URL",
         )
 
         await self.safe_fill_with_fallbacks(
             [ctx.locator(s) for s in self.SELECTORS["website"]],
-            personal.website,
+            self.validate_url_field(personal.website, "Website/Portfolio"),
             "Website/Portfolio",
         )
+
+        # Check for multi-page form
+        await self.detect_next_page()
 
         # HALT — Never submit
         return self.halt_for_review()

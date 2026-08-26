@@ -127,6 +127,21 @@ def parse_args() -> argparse.Namespace:
         help="Skip saving the JSON session report",
     )
     parser.add_argument(
+        "--human-mode",
+        action="store_true",
+        help="Type fields character-by-character to simulate human input (slower, avoids bot detection)",
+    )
+    parser.add_argument(
+        "--show-reports",
+        action="store_true",
+        help="Display past fill session reports and exit",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s v2.1 | ATS Form Filler | Semi-Automated | Never auto-submits",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug-level logging",
@@ -134,9 +149,9 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
 
-    # Validate: data source required unless --list-tabs or --dry-run
-    if not args.list_tabs and not args.candidate_id and not args.data_file:
-        parser.error("one of --candidate-id or --data-file is required (unless using --list-tabs)")
+    # Validate: data source required unless --list-tabs, --show-reports, or --dry-run
+    if not args.list_tabs and not args.show_reports and not args.candidate_id and not args.data_file:
+        parser.error("one of --candidate-id or --data-file is required (unless using --list-tabs or --show-reports)")
 
     return args
 
@@ -252,6 +267,57 @@ async def take_screenshot(page, prefix: str = "fill") -> Path | None:
         return None
 
 
+def show_reports() -> int:
+    """Display past fill session reports from fill_reports/ in a rich table.
+
+    Returns:
+        Exit code.
+    """
+    reports_dir = Path("fill_reports")
+    if not reports_dir.exists() or not list(reports_dir.glob("*.json")):
+        console.print("[yellow]No session reports found. Run a fill to generate reports.[/]")
+        console.print(f"[dim]Reports are saved to: {reports_dir.resolve()}[/]")
+        return 0
+
+    report_files = sorted(reports_dir.glob("*.json"), reverse=True)
+
+    table = Table(
+        title=f"Fill Session Reports ({len(report_files)} found)",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("Timestamp", style="dim", width=20)
+    table.add_column("Platform", width=16)
+    table.add_column("Candidate", style="white", width=22)
+    table.add_column("Filled", justify="right", width=8)
+    table.add_column("Failed", justify="right", width=8)
+    table.add_column("Rate", justify="right", width=8)
+
+    for rp in report_files[:20]:  # show last 20
+        try:
+            data = json.loads(rp.read_text(encoding="utf-8"))
+            ts = data.get("timestamp", "")[:19].replace("T", " ")
+            platform = data.get("ats_platform", "?")
+            candidate = data.get("candidate", {}).get("full_name", "?")
+            summary = data.get("summary", {})
+            filled = summary.get("filled_count", 0)
+            failed = summary.get("failed_count", 0)
+            rate = summary.get("success_rate_pct", 0)
+
+            rate_str = f"[green]{rate:.0f}%[/]" if rate == 100 else (
+                f"[yellow]{rate:.0f}%[/]" if rate >= 70 else f"[red]{rate:.0f}%[/]"
+            )
+            failed_str = f"[red]{failed}[/]" if failed > 0 else f"[dim]{failed}[/]"
+
+            table.add_row(ts, platform, candidate, str(filled), failed_str, rate_str)
+        except Exception:
+            continue
+
+    console.print(table)
+    console.print(f"\n[dim]Reports stored in: {reports_dir.resolve()}[/]")
+    return 0
+
+
 async def run(args: argparse.Namespace) -> int:
     """Main execution flow.
 
@@ -273,6 +339,10 @@ async def run(args: argparse.Namespace) -> int:
     # Handle --list-tabs early
     if args.list_tabs:
         return await list_tabs(port)
+
+    # Handle --show-reports early
+    if args.show_reports:
+        return show_reports()
 
     # Step 2: Fetch & validate candidate data BEFORE launching browser
     console.print()
@@ -327,7 +397,9 @@ async def run(args: argparse.Namespace) -> int:
         console.print()
         console.print(Panel("[bold blue]Step 3/3: Filling Application Form[/]"))
 
-        filler = await get_filler(page, candidate)
+        if args.human_mode:
+            console.print("  [dim][bold]Human Mode ON[/] - typing character-by-character (slower but safer)[/]")
+        filler = await get_filler(page, candidate, human_mode=args.human_mode)
         result = await filler.fill()
 
         # Take screenshot if requested
