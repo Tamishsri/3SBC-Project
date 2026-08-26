@@ -39,6 +39,8 @@ class TaskItem:
     human_mode: bool = False
     multi_page: bool = False
     screenshot: bool = False
+    webhook_url: str | None = None
+    preset: str | None = None
 
 
 @dataclass
@@ -71,6 +73,9 @@ class ConcurrentWorkerPool:
             # 1. Load candidate
             try:
                 candidate = load_candidate_from_file(str(item.data_file))
+                if item.preset:
+                    from src.presets import merge_candidate_with_preset
+                    candidate = merge_candidate_with_preset(candidate, item.preset)
                 cand_name = candidate.personal.full_name
             except Exception as exc:
                 return TaskOutcome(
@@ -102,6 +107,15 @@ class ConcurrentWorkerPool:
                     source_file=item.data_file,
                     notes=f"User: {item.user_id} | Task: {item.task_id}",
                 )
+
+                if item.webhook_url:
+                    from src.notifier import send_fill_notification
+                    await send_fill_notification(
+                        item.webhook_url,
+                        result,
+                        candidate,
+                        notes=f"User: {item.user_id} | Task: {item.task_id}",
+                    )
 
                 duration = asyncio.get_event_loop().time() - start_time
                 return TaskOutcome(

@@ -1,0 +1,23 @@
+{
+  "preset_name": "default_us",
+  "schema_version": "1.0",
+  "work_authorization": {
+    "authorized_to_work": true,
+    "requires_sponsorship": false,
+    "notice_period_days": 30,
+    "expected_salary": "18 LPA",
+    "willing_to_relocate": true
+  },
+  "demographics": {
+    "gender": "Male",
+    "race_ethnicity": "Asian",
+    "veteran_status": "I am not a protected veteran",
+    "disability_status": "No, I don't have a disability"
+  },
+  "custom_answers": {
+    "notice period": "30 days",
+    "expected salary": "18 LPA",
+    "willing to relocate": "Yes"
+  },
+  "cover_letter_template": null
+}

@@ -1,8 +1,8 @@
-# 🤖 ATS Form Filler v2.4 — Semi-Automated Job Application Assistant
+# 🤖 ATS Form Filler v2.5 — Enterprise Semi-Automated Job Application Assistant
 
 > **⛔ CORE RULE: This tool NEVER auto-submits applications.** It fills recognized fields, auto-advances wizard steps if requested, and strictly halts for human review before final submission.
 
-A production-grade Python + Playwright automation tool designed to eliminate repetitive data entry on Applicant Tracking Systems (ATS). It connects seamlessly to your existing logged-in browser session via Chrome DevTools Protocol (CDP), fills form fields using structured candidate data, and **halts for you to review and submit manually**.
+A production-grade Python + Playwright automation suite designed to eliminate repetitive data entry on Applicant Tracking Systems (ATS). It connects seamlessly to your existing logged-in browser session via Chrome DevTools Protocol (CDP), fills form fields using structured candidate data, and **halts for you to review and submit manually**.
 
 ---
 
@@ -20,16 +20,18 @@ A production-grade Python + Playwright automation tool designed to eliminate rep
 ## 🚀 Key Features
 
 - **⚡ Multi-ATS Platform Support**: Built-in specialized fillers for Greenhouse (including iframe support), Lever, Workday, and SmartRecruiters.
+- **🔔 Real-Time Webhook & Slack Alerts (`--webhook-url`)**: Non-blocking asynchronous notifications to Slack incoming webhooks, Discord, Zapier, or custom HTTP endpoints upon application staging.
+- **🎛️ User Preference Presets (`--save-preset`, `--use-preset`)**: Save and reuse standard Work Authorization, EEOC Demographics, custom answers, and cover letter templates with non-destructive merging.
+- **📄 Offline Local Resume Fallback Parser (`--parse-resume`)**: Built-in PDF/Text parser with regex & heuristics as a high-availability fallback when external parsing services are offline.
+- **📈 Interactive Live Dashboard Server (`--serve-dashboard`)**: Lightweight embedded web server (`http://127.0.0.1:8080`) providing live application analytics with dynamic background auto-polling.
 - **🛂 Work Authorization & EEOC Compliance**: Automatically fills standard legal work authorization, visa sponsorship, gender, race/ethnicity, veteran, and disability dropdowns/radios.
 - **❓ Dynamic Custom Question Matcher**: Intelligently matches company-specific questions (notice period, expected salary, relocation, custom answers map) using fuzzy label heuristics.
 - **🔄 Multi-Page Step-Through Wizard (`--multi-page`)**: Automatically advances through multi-step applications (Workday/SmartRecruiters) and strictly halts only when the final Submit/Apply review screen is reached.
 - **🤝 Parser Contract Verifier (`--verify-contract`)**: Diagnostic tool for teammate Saran's resume parser to validate JSON schemas, detect field-name aliases (`fname` -> `first_name`), and compute compatibility scores.
 - **🛡️ Bot-Safe Human Mode (`--human-mode`)**: Types character-by-character with randomized 40–180ms keystroke delays to bypass bot detection.
 - **🔄 Auto-Scroll & Resilient Retry**: Automatically scrolls fields into view before filling and retries once upon timeout.
-- **📸 Intelligent Visual Capture**:
-  - Full-page screenshot on completion (`--screenshot`).
-  - **Instant Failure Snapshot**: Saves DOM screenshots immediately to `screenshots/failures/` whenever an ATS layout changes.
-- **📁 Enterprise Batch & Worker Pool (`--batch-dir`, `--concurrency`)**: Asynchronous worker pool with backpressure control for high-throughput multi-user execution.
+- **📸 Visual Error Snapshots**: Saves DOM screenshots immediately to `screenshots/failures/` whenever an ATS layout changes.
+- **📁 Enterprise Batch & Worker Pool (`--batch-dir`, `--concurrency`)**: Asynchronous worker pool with backpressure control and isolated browser tabs for high-throughput multi-user execution.
 - **📊 Real-World Data Normalization**: Normalizes international phone numbers (E.164), parses locations into city/state/country, strips honorifics/suffixes, and sanitizes Unicode.
 - **🔍 ATS Form Health Check (`--check-selectors`)**: Read-only diagnostic scanner that checks DOM selector health and detects selector drift without modifying the page.
 - **📈 Job Application Pipeline Tracker (`--show-tracker`)**: Process-safe CSV pipeline tracking recording company, ATS platform, and success rates.
@@ -42,7 +44,7 @@ A production-grade Python + Playwright automation tool designed to eliminate rep
 
 - **Python 3.11+**
 - **Google Chrome** or **Microsoft Edge** browser
-- **Resume parser backend** (or local JSON files)
+- **Resume parser backend** (or local JSON / PDF / TXT files)
 
 ---
 
@@ -92,6 +94,21 @@ python -m src.main --data-file sample_candidate.json --human-mode
 # --- Multi-Page Wizard Mode (Auto-advance steps on Workday/SmartRecruiters) ---
 python -m src.main --data-file sample_candidate.json --multi-page
 
+# --- Real-Time Slack / Discord / Webhook Alerts ---
+python -m src.main --data-file sample_candidate.json --webhook-url https://hooks.slack.com/services/...
+
+# --- Save and Use Preference Presets ---
+python -m src.main --save-preset default_us --data-file sample_candidate.json
+python -m src.main --list-presets
+python -m src.main --data-file minimal_candidate.json --use-preset default_us
+
+# --- Extract Candidate Data Directly from Raw Resume (PDF / TXT) ---
+python -m src.main --parse-resume my_resume.pdf
+python -m src.main --verify-contract my_resume.json
+
+# --- Start Interactive Live Dashboard Web Server ---
+python -m src.main --serve-dashboard --dashboard-port 8080
+
 # --- Verify Parser Contract (For Teammate Saran) ---
 python -m src.main --verify-contract sample_candidate.json
 
@@ -100,7 +117,7 @@ python -m src.main --data-file sample_candidate.json --validate-only
 python -m src.main --batch-dir samples/ --validate-only
 
 # --- High-Throughput Batch Processing with Parallel Workers ---
-python -m src.main --batch-dir samples/ --concurrency 3 --user-id recruiter_1
+python -m src.main --batch-dir samples/ --concurrency 3 --user-id recruiter_1 --multi-page
 
 # --- ATS Form Health Check (Selector Diagnostic) ---
 python -m src.main --check-selectors
@@ -123,7 +140,9 @@ python -m src.main --export-dashboard
 ```
 3sbc-project/
 ├── sample_candidate.json             # Reference candidate JSON
+├── sample_resume.txt                 # Reference raw resume document
 ├── samples/                          # Sample candidate profiles for batch testing
+├── presets/                          # User preference presets
 ├── requirements.txt                  # Python dependencies
 ├── pyproject.toml                    # Pytest configuration
 ├── launch_browser.bat                # Windows Chrome launcher script
@@ -135,6 +154,10 @@ python -m src.main --export-dashboard
 │   ├── config.py                     # Environment settings
 │   ├── models.py                     # Pydantic v2 data contract
 │   ├── normalizer.py                 # Phone, location, name, text sanitization
+│   ├── notifier.py                   # Real-time Webhook, Slack & Discord alerts
+│   ├── presets.py                    # User preference presets manager
+│   ├── resume_fallback.py            # Local PDF/TXT resume fallback parser
+│   ├── server.py                     # Embedded live dashboard HTTP server
 │   ├── api_client.py                 # Async backend API client
 │   ├── browser.py                    # Playwright CDP session manager
 │   ├── ats_router.py                 # ATS platform detection & routing
@@ -170,7 +193,11 @@ python -m src.main --export-dashboard
     ├── test_heavy_load_concurrency.py # 50-thread high-contention & 100-burst tests
     ├── test_compliance_and_custom_qa.py # Work Auth, EEOC & Custom Q&A tests
     ├── test_multi_page_wizard.py     # Multi-page wizard & submit safety tests
-    └── test_contract_verifier.py     # Resume parser contract verifier tests
+    ├── test_contract_verifier.py     # Resume parser contract verifier tests
+    ├── test_notifier.py              # Webhook & Slack alerts tests
+    ├── test_presets.py               # User preference presets tests
+    ├── test_resume_fallback.py       # Local PDF/TXT parser fallback tests
+    └── test_server.py                # Live dashboard HTTP server tests
 ```
 
 ---
@@ -178,7 +205,7 @@ python -m src.main --export-dashboard
 ## 🧪 Running Tests
 
 ```bash
-# Run full automated test suite (16 test modules):
+# Run full automated test suite (127 tests across 19 test modules):
 python -m pytest tests/ -v
 
 # Run enterprise performance benchmark:
@@ -192,3 +219,4 @@ python scripts/benchmark_stress.py
 1. **Never Auto-Submit**: The script will **never** click Submit/Apply. The user maintains 100% control over the application.
 2. **Fail Loudly, Never Silently**: If an ATS layout changes, specific errors and DOM failure screenshots are created rather than typing into incorrect fields.
 3. **Resilient & Human-Centric**: Multi-selector fallbacks, automatic scroll-into-view, compliance automation, and human-like typing ensure maximum compatibility with real-world ATS pages.
+

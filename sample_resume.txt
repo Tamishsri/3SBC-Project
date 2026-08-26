@@ -1,0 +1,20 @@
+Tamish Sridatta
+Software Engineer
+tamish.sridatta@example.com | +91-9876543210 | Chennai, Tamil Nadu, India
+LinkedIn: https://linkedin.com/in/tamishsri
+GitHub: https://github.com/Tamishsri
+Portfolio: https://tamishsri.dev
+
+TECHNICAL SKILLS:
+Python, Playwright, FastAPI, Docker, Kubernetes, PostgreSQL, React, TypeScript, AWS, Git
+
+WORK EXPERIENCE:
+Lead Automation Engineer - 3SBC Tech (2022 - Present)
+- Architected enterprise ATS automation framework with Playwright and Python.
+- Built high-throughput batch processors handling 1,400+ candidates/sec.
+
+Software Engineer - Distributed Systems Corp (2020 - 2022)
+- Engineered scalable microservices with FastAPI and PostgreSQL.
+
+EDUCATION:
+B.Tech in Information Technology - Anna University (2016 - 2020)

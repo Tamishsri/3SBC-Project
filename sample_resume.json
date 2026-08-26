@@ -1,0 +1,70 @@
+{
+  "personal": {
+    "first_name": "Tamish",
+    "last_name": "Sridatta",
+    "email": "tamish.sridatta@example.com",
+    "phone": "+919876543210",
+    "linkedin_url": "https://linkedin.com/in/tamishsri",
+    "github_url": "https://github.com/Tamishsri",
+    "location": "TypeScript, AW",
+    "website": "https://tamishsri.dev"
+  },
+  "experience": [
+    {
+      "company": "3SBC Tech (2022",
+      "title": "Lead Automation Engineer",
+      "start_date": "2022-01",
+      "end_date": null,
+      "description": null,
+      "location": null
+    },
+    {
+      "company": "Distributed Systems Corp (2020",
+      "title": "Software Engineer",
+      "start_date": "2022-01",
+      "end_date": null,
+      "description": null,
+      "location": null
+    }
+  ],
+  "education": [
+    {
+      "institution": "University",
+      "degree": "B.Tech in Information Technology - Anna University (2016 - 2020)",
+      "field_of_study": null,
+      "degree_level": null,
+      "graduation_date": "2021-05",
+      "gpa": null
+    }
+  ],
+  "skills": [
+    "AWS",
+    "Distributed Systems",
+    "Docker",
+    "FastAPI",
+    "Kubernetes",
+    "Microservices",
+    "Playwright",
+    "PostgreSQL",
+    "Python",
+    "React",
+    "TypeScript"
+  ],
+  "certifications": [],
+  "cover_letter": "I am excited to submit my application. With experience in AWS, Distributed Systems, Docker, FastAPI, I look forward to contributing to your team.",
+  "resume_file_path": "C:\\Users\\Tamish Sridatta.B\\OneDrive\\Desktop\\Projects\\3sbc-project\\sample_resume.txt",
+  "work_authorization": {
+    "authorized_to_work": true,
+    "requires_sponsorship": false,
+    "notice_period_days": null,
+    "expected_salary": null,
+    "willing_to_relocate": true
+  },
+  "demographics": {
+    "gender": "Decline to self-identify",
+    "race_ethnicity": "Decline to self-identify",
+    "veteran_status": "I am not a protected veteran",
+    "disability_status": "I do not wish to answer"
+  },
+  "custom_answers": {}
+}

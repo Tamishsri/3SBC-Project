@@ -191,9 +191,49 @@ def parse_args() -> argparse.Namespace:
         help="Export all tracked applications to a visual, standalone HTML dashboard file",
     )
     parser.add_argument(
+        "--serve-dashboard",
+        action="store_true",
+        help="Launch the interactive live dashboard HTTP server with real-time analytics polling",
+    )
+    parser.add_argument(
+        "--dashboard-port",
+        type=int,
+        default=8080,
+        help="Port for live dashboard server (default: 8080)",
+    )
+    parser.add_argument(
+        "--webhook-url",
+        type=str,
+        default=None,
+        help="HTTP(S) webhook URL (Slack, Discord, Zapier) for real-time application staging alerts",
+    )
+    parser.add_argument(
+        "--save-preset",
+        type=str,
+        default=None,
+        help="Save preferences from --data-file as a named preset (e.g. 'default_us')",
+    )
+    parser.add_argument(
+        "--use-preset",
+        type=str,
+        default=None,
+        help="Load and merge a named preference preset with the candidate data",
+    )
+    parser.add_argument(
+        "--list-presets",
+        action="store_true",
+        help="List all saved preference presets and exit",
+    )
+    parser.add_argument(
+        "--parse-resume",
+        type=str,
+        default=None,
+        help="Extract candidate data directly from a local .pdf or .txt resume file",
+    )
+    parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s v2.4 | ATS Form Filler | Semi-Automated | Never auto-submits",
+        version="%(prog)s v2.5 | ATS Form Filler | Semi-Automated | Never auto-submits",
     )
     parser.add_argument(
         "--debug",
@@ -209,6 +249,10 @@ def parse_args() -> argparse.Namespace:
         and not args.show_reports
         and not args.show_tracker
         and not args.export_dashboard
+        and not args.serve_dashboard
+        and not args.list_presets
+        and not args.save_preset
+        and not args.parse_resume
         and not args.check_selectors
         and not args.verify_contract
         and not args.candidate_id
@@ -219,6 +263,7 @@ def parse_args() -> argparse.Namespace:
         parser.error(
             "specify one of: --candidate-id, --data-file, --batch-dir, "
             "--list-tabs, --show-reports, --show-tracker, --export-dashboard, "
+            "--serve-dashboard, --list-presets, --save-preset, --parse-resume, "
             "--verify-contract, or --check-selectors"
         )
 
@@ -485,6 +530,8 @@ async def run_batch_mode(args: argparse.Namespace, port: int) -> int:
                 human_mode=args.human_mode,
                 multi_page=args.multi_page,
                 screenshot=args.screenshot,
+                webhook_url=args.webhook_url,
+                preset=args.use_preset,
             )
             for i, f in enumerate(json_files)
         ]
@@ -503,6 +550,8 @@ async def run_batch_mode(args: argparse.Namespace, port: int) -> int:
             multi_page=args.multi_page,
             screenshot=args.screenshot,
             delay_seconds=args.batch_delay,
+            webhook_url=args.webhook_url,
+            preset=args.use_preset,
         )
         failed = sum(1 for r in results if not r.success)
         return 1 if failed > 0 else 0
@@ -562,6 +611,55 @@ async def run(args: argparse.Namespace) -> int:
     if args.show_tracker:
         return show_tracker()
 
+    # Handle --serve-dashboard early
+    if args.serve_dashboard:
+        from src.server import run_server
+        port_num = args.dashboard_port or 8080
+        console.print(f"[bold cyan]Starting Live Dashboard Server on http://127.0.0.1:{port_num}/ ...[/]")
+        console.print("[dim]Serving dynamic live application stats. Press Ctrl+C to stop.[/]")
+        run_server(port=port_num, open_browser=True, block=True)
+        return 0
+
+    # Handle --list-presets early
+    if args.list_presets:
+        from src.presets import list_presets
+        presets = list_presets()
+        if not presets:
+            console.print("[yellow]No presets found. Use --save-preset <name> --data-file <file> to create one.[/]")
+        else:
+            console.print(f"[bold cyan]Available Preference Presets ({len(presets)} found):[/]")
+            for p in presets:
+                console.print(f"  • [bold green]{p}[/]")
+        return 0
+
+    # Handle --save-preset early
+    if args.save_preset:
+        if not args.data_file:
+            console.print("[red]ERROR:[/] --save-preset requires --data-file containing the preference template.")
+            return 1
+        from src.presets import save_preset
+        raw_data = json.loads(Path(args.data_file).read_text(encoding="utf-8"))
+        preset_file = save_preset(args.save_preset, raw_data)
+        console.print(f"[bold green]Preset saved successfully![/] Saved to: {preset_file}")
+        return 0
+
+    # Handle --parse-resume early
+    if args.parse_resume:
+        from src.resume_fallback import parse_and_save_candidate, parse_resume_file
+        try:
+            cand = parse_resume_file(args.parse_resume)
+            out_file = parse_and_save_candidate(args.parse_resume)
+            console.print(f"[bold green]Resume parsed successfully![/]")
+            console.print(f"  • Candidate: [bold]{cand.personal.full_name}[/] ({cand.personal.email})")
+            console.print(f"  • Phone: {cand.personal.phone or 'N/A'}")
+            console.print(f"  • Location: {cand.personal.location or 'N/A'}")
+            console.print(f"  • Skills: {', '.join(cand.skills[:8])}...")
+            console.print(f"  • Saved schema JSON: [dim]{out_file.resolve()}[/]")
+            return 0
+        except Exception as exc:
+            console.print(f"[bold red]Resume parsing error:[/] {exc}")
+            return 1
+
     # Handle --export-dashboard early
     if args.export_dashboard:
         from src.exporter import generate_html_dashboard
@@ -603,6 +701,11 @@ async def run(args: argparse.Namespace) -> int:
             )
             return 1
         candidate = await fetch_candidate_data(args.candidate_id, config)
+
+    if args.use_preset:
+        from src.presets import merge_candidate_with_preset
+        candidate = merge_candidate_with_preset(candidate, args.use_preset)
+        console.print(f"  [dim]Applied preference preset: [bold]{args.use_preset}[/][/]")
 
     console.print(
         f"  Candidate: [bold]{candidate.personal.full_name}[/] "
@@ -666,6 +769,12 @@ async def run(args: argparse.Namespace) -> int:
         tracker_path = append_to_tracker(result, candidate, source_file=source_path)
         console.print(f"  [dim]Pipeline tracker updated: {tracker_path}[/]")
 
+        # Send webhook notification if specified
+        if args.webhook_url:
+            from src.notifier import send_fill_notification
+            await send_fill_notification(args.webhook_url, result, candidate)
+            console.print(f"  [dim]Webhook notification sent: {args.webhook_url}[/]")
+
         # Print final summary table
         console.print()
         summary_table = Table(title="Fill Summary", show_header=True, header_style="bold")
@@ -721,8 +830,8 @@ def main() -> None:
 
     # Print banner
     banner = Text()
-    banner.append("\n  ATS Form Filler v2.4\n", style="bold cyan")
-    banner.append("  Semi-Automated | Human-Controlled | Multi-Page Wizard & Compliance Ready\n", style="dim")
+    banner.append("\n  ATS Form Filler v2.5\n", style="bold cyan")
+    banner.append("  Semi-Automated | Human-Controlled | Multi-Page & Enterprise Automation\n", style="dim")
     banner.append("  [!] NEVER auto-submits - Final Review is Always Yours\n", style="bold red")
     console.print(Panel(banner, border_style="cyan"))
 

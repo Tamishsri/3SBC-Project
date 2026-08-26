@@ -50,6 +50,8 @@ async def process_single_candidate(
     multi_page: bool = False,
     screenshot: bool = False,
     delay_seconds: float = 5.0,
+    webhook_url: str | None = None,
+    preset: str | None = None,
 ) -> BatchResult:
     """Process a single candidate JSON file.
 
@@ -61,6 +63,8 @@ async def process_single_candidate(
         multi_page: Enable multi-step wizard auto-advancement.
         screenshot: Take screenshot after fill.
         delay_seconds: Seconds to wait BEFORE this candidate (rate limiting).
+        webhook_url: Optional webhook URL to send completion notifications.
+        preset: Optional user preference preset name to merge.
 
     Returns:
         BatchResult with outcome details.
@@ -71,6 +75,9 @@ async def process_single_candidate(
 
     try:
         candidate = load_candidate_from_file(str(json_path))
+        if preset:
+            from src.presets import merge_candidate_with_preset
+            candidate = merge_candidate_with_preset(candidate, preset)
         name = candidate.personal.full_name
     except Exception as exc:
         return BatchResult(
@@ -100,6 +107,10 @@ async def process_single_candidate(
 
             save_report(result, candidate)
             append_to_tracker(result, candidate, json_path)
+
+            if webhook_url:
+                from src.notifier import send_fill_notification
+                await send_fill_notification(webhook_url, result, candidate, notes=f"Batch: {json_path.stem}")
 
             return BatchResult(
                 file_path=json_path,
@@ -143,6 +154,8 @@ async def run_batch(
     multi_page: bool = False,
     screenshot: bool = False,
     delay_seconds: float = 5.0,
+    webhook_url: str | None = None,
+    preset: str | None = None,
 ) -> list[BatchResult]:
     """Process all candidate JSON files in a directory.
 
@@ -157,6 +170,8 @@ async def run_batch(
         multi_page: Enable multi-step wizard auto-advancement.
         screenshot: Take screenshot after each fill.
         delay_seconds: Rate-limit delay between candidates.
+        webhook_url: Optional webhook URL for notifications.
+        preset: Optional user preference preset name to merge.
 
     Returns:
         List of BatchResult for each candidate processed.
@@ -173,7 +188,9 @@ async def run_batch(
         f"Directory: [dim]{batch_dir}[/]\n"
         f"Candidates: [bold]{len(json_files)}[/]\n"
         f"Rate limit: [dim]{delay_seconds}s between each[/]\n"
-        f"Multi-page Wizard: [dim]{'ON' if multi_page else 'OFF'}[/]",
+        f"Multi-page Wizard: [dim]{'ON' if multi_page else 'OFF'}[/]"
+        + (f"\nPreset: [dim]{preset}[/]" if preset else "")
+        + (f"\nWebhook: [dim]{webhook_url}[/]" if webhook_url else ""),
         title="[bold]Batch Processing",
         border_style="cyan",
     ))
@@ -200,6 +217,8 @@ async def run_batch(
                 multi_page=multi_page,
                 screenshot=screenshot,
                 delay_seconds=0.0 if is_first else delay_seconds,
+                webhook_url=webhook_url,
+                preset=preset,
             )
             results.append(result)
             progress.advance(task)
