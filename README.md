@@ -176,6 +176,6 @@ python -m pytest tests/ -v
 
 ## ⚖️ Core Philosophy
 
-1. **Never Auto-Submit**: The script will **never** click Submit/Apply. The user maintains 100% control over the application.
-2. **Fail Loudly, Never Silently**: If an ATS layout changes, specific errors and DOM failure screenshots are created rather than typing into incorrect fields.
-3. **Resilient & Human-Centric**: Multi-selector fallbacks, automatic scroll-into-view, and human-like typing ensure maximum compatibility with real-world ATS pages.
+1. **Never Auto-Submit**: The script will **never** click Submit/Apply. The user maintains 100% control over the application
+3. **Fail Loudly, Never Silently**: If an ATS layout changes, specific errors and DOM failure screenshots are created rather than typing into incorrect fields.
+4. **Resilient & Human-Centric**: Multi-selector fallbacks, automatic scroll-into-view, and human-like typing ensure maximum compatibility with real-world ATS pages.
