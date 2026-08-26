@@ -205,8 +205,14 @@ class LeverFiller(ATSFormFiller):
             "Cover Letter / Additional Info",
         )
 
-        # Check for multi-page form
-        await self.detect_next_page()
+        # --- Work Authorization, EEOC Compliance & Custom Questions ---
+        await self.fill_compliance_and_work_auth()
+        await self.fill_custom_questions()
+
+        # Multi-page wizard advance
+        advanced = await self.advance_to_next_wizard_page()
+        if not advanced:
+            await self.detect_next_page()
 
         # HALT — Never submit
         return self.halt_for_review()

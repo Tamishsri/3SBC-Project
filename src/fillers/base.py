@@ -55,10 +55,18 @@ class ATSFormFiller(ABC):
 
     platform_name: str = "Unknown ATS"
 
-    def __init__(self, page: Page, candidate: CandidateData, *, human_mode: bool = False) -> None:
+    def __init__(
+        self,
+        page: Page,
+        candidate: CandidateData,
+        *,
+        human_mode: bool = False,
+        multi_page: bool = False,
+    ) -> None:
         self.page = page
         self.candidate = candidate
         self.human_mode = human_mode
+        self.multi_page = multi_page
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._filled_fields: list[str] = []
         self._failed_fields: list[str] = []
@@ -385,6 +393,214 @@ class ATSFormFiller(ABC):
             self._failed_fields.append(field_name)
             return False
 
+    async def safe_set_choice(
+        self,
+        question_keywords: list[str],
+        target_value: str | None,
+        field_name: str,
+    ) -> bool:
+        """Find a question container by keywords and select matching option or radio button.
+
+        Args:
+            question_keywords: Substrings identifying the question.
+            target_value: Option text or value to select (e.g. 'Yes', 'No', 'Decline').
+            field_name: Human-readable field name for reporting.
+
+        Returns:
+            True if matched and selected successfully.
+        """
+        if not target_value or not target_value.strip():
+            return False
+
+        target_norm = target_value.strip().lower()
+
+        # Strategy 1: Look for select elements inside matching question blocks
+        for kw in question_keywords:
+            try:
+                # Find select associated with label/fieldset
+                selectors = [
+                    f'label:has-text("{kw}") >> select',
+                    f'fieldset:has-text("{kw}") >> select',
+                    f'div:has-text("{kw}") >> select',
+                ]
+                for sel in selectors:
+                    locator = self.page.locator(sel).first
+                    if await locator.count() > 0:
+                        await self._scroll_to_element(locator)
+                        # Try selecting by label first, then value
+                        try:
+                            await locator.select_option(label=target_value, timeout=2000)
+                            self.logger.info("[OK] Selected '%s' for '%s'", target_value, field_name)
+                            self._filled_fields.append(field_name)
+                            return True
+                        except Exception:
+                            # Try selecting by case-insensitive partial match on options
+                            opts = await locator.locator("option").all_inner_texts()
+                            for opt in opts:
+                                if target_norm in opt.lower():
+                                    await locator.select_option(label=opt, timeout=2000)
+                                    self.logger.info("[OK] Selected '%s' for '%s'", opt.strip(), field_name)
+                                    self._filled_fields.append(field_name)
+                                    return True
+            except Exception:
+                continue
+
+        # Strategy 2: Look for radio buttons or checkboxes matching the target value INSIDE question container
+        for kw in question_keywords:
+            try:
+                radio_sel = [
+                    f'fieldset:has-text("{kw}") input[type="radio"][value*="{target_value}" i]',
+                    f'fieldset:has-text("{kw}") label:has-text("{target_value}") >> input[type="radio"]',
+                    f'fieldset:has-text("{kw}") label:has-text("{target_value}") input[type="radio"]',
+                    f'div:has-text("{kw}") input[type="radio"][value*="{target_value}" i]',
+                    f'div:has-text("{kw}") label:has-text("{target_value}") >> input[type="radio"]',
+                    f'div:has-text("{kw}") label:has-text("{target_value}") input[type="radio"]',
+                    f'section:has-text("{kw}") input[type="radio"][value*="{target_value}" i]',
+                    f'section:has-text("{kw}") label:has-text("{target_value}") >> input[type="radio"]',
+                ]
+                for r_sel in radio_sel:
+                    radio = self.page.locator(r_sel).first
+                    if await radio.count() > 0:
+                        await self._scroll_to_element(radio)
+                        try:
+                            await radio.check(force=True, timeout=2000)
+                        except Exception:
+                            await radio.click(force=True, timeout=2000)
+                        self.logger.info("[OK] Checked radio '%s' for '%s'", target_value, field_name)
+                        self._filled_fields.append(field_name)
+                        return True
+            except Exception:
+                continue
+
+        return False
+
+    async def fill_compliance_and_work_auth(self) -> None:
+        """Fill standard work authorization and EEOC demographic questions if present."""
+        auth = self.candidate.work_authorization
+        demo = self.candidate.demographics
+
+        self.logger.info("--- Checking Standard Work Authorization & Compliance Questions ---")
+
+        # 1. Legal Work Authorization
+        auth_val = "Yes" if auth.authorized_to_work else "No"
+        await self.safe_set_choice(
+            ["authorized to work", "legally authorized", "eligible to work", "work authorization"],
+            auth_val,
+            "Work Authorization",
+        )
+
+        # 2. Visa Sponsorship
+        spon_val = "Yes" if auth.requires_sponsorship else "No"
+        await self.safe_set_choice(
+            ["require sponsorship", "visa sponsorship", "need sponsorship", "require a visa"],
+            spon_val,
+            "Visa Sponsorship",
+        )
+
+        # 3. Gender
+        if demo.gender:
+            await self.safe_set_choice(["gender", "sex"], demo.gender, "EEOC Gender")
+
+        # 4. Race / Ethnicity
+        if demo.race_ethnicity:
+            await self.safe_set_choice(["race", "ethnicity", "hispanic"], demo.race_ethnicity, "EEOC Race/Ethnicity")
+
+        # 5. Veteran Status
+        if demo.veteran_status:
+            await self.safe_set_choice(["veteran", "military"], demo.veteran_status, "EEOC Veteran Status")
+
+        # 6. Disability Status
+        if demo.disability_status:
+            await self.safe_set_choice(["disability", "disabled"], demo.disability_status, "EEOC Disability Status")
+
+    async def fill_custom_questions(self) -> None:
+        """Fill company-specific custom questions from candidate data and custom_answers map."""
+        auth = self.candidate.work_authorization
+        custom_map = self.candidate.custom_answers.copy()
+
+        # Add standard parameters to custom mapping
+        if auth.notice_period_days is not None:
+            custom_map["notice period"] = str(auth.notice_period_days)
+        if auth.expected_salary:
+            custom_map["expected salary"] = auth.expected_salary
+            custom_map["desired compensation"] = auth.expected_salary
+
+        if not custom_map:
+            return
+
+        self.logger.info("--- Checking Dynamic Custom Company Questions ---")
+
+        for key, val in custom_map.items():
+            if not val or not str(val).strip():
+                continue
+
+            field_label = f"Custom Q: {key.title()}"
+            val_str = str(val).strip()
+
+            # Try finding text input or textarea by label text or placeholder
+            selectors = [
+                f'label:has-text("{key}") >> input[type="text"]',
+                f'label:has-text("{key}") >> input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"])',
+                f'label:has-text("{key}") >> textarea',
+                f'input[placeholder*="{key}" i]',
+                f'textarea[placeholder*="{key}" i]',
+            ]
+            for sel in selectors:
+                try:
+                    loc = self.page.locator(sel).first
+                    if await loc.count() > 0:
+                        await self._scroll_to_element(loc)
+                        if self.human_mode:
+                            await self.human_type(loc, val_str)
+                        else:
+                            await loc.fill(val_str)
+                        self.logger.info("[OK] Filled custom question '%s': %s", key, val_str)
+                        self._filled_fields.append(field_label)
+                        break
+                except Exception:
+                    continue
+
+    async def advance_to_next_wizard_page(self) -> bool:
+        """Advance to next wizard step on multi-page forms, ensuring NEVER to click final submit.
+
+        Returns:
+            True if advanced to next page, False if at final review screen or no next button.
+        """
+        if not self.multi_page:
+            return False
+
+        next_selectors = [
+            'button:has-text("Next"):not(:has-text("Submit")):not(:has-text("Apply"))',
+            'button:has-text("Continue"):not(:has-text("Submit")):not(:has-text("Apply"))',
+            'button:has-text("Save and Continue")',
+            'button:has-text("Save & Continue")',
+            '[data-automation-id="bottom-navigation-next-button"]',
+        ]
+
+        for sel in next_selectors:
+            try:
+                btn = self.page.locator(sel).first
+                if await btn.count() > 0 and await btn.is_visible():
+                    btn_text = (await btn.inner_text()).lower()
+                    # SAFETY GUARD: Strict check — Never auto-submit!
+                    if any(term in btn_text for term in ["submit", "apply", "finish", "send application"]):
+                        self.logger.info("[STOP] Final submission button detected ('%s'). Halting for human review.", btn_text)
+                        return False
+
+                    self.logger.info("[WIZARD] Advancing to next step: Clicking '%s'...", btn_text.strip())
+                    await self._scroll_to_element(btn)
+                    await btn.click()
+                    # Wait for navigation/SPA state
+                    try:
+                        await self.page.wait_for_load_state("networkidle", timeout=8000)
+                    except Exception:
+                        await asyncio.sleep(2.0)
+                    return True
+            except Exception:
+                continue
+
+        return False
+
     async def detect_next_page(self) -> bool:
         """Check if the form has a 'Next' or 'Continue' button (multi-page form).
 
@@ -403,8 +619,7 @@ class ATSFormFiller(ABC):
                 if count > 0:
                     self.logger.warning(
                         "[!!] MULTI-PAGE FORM: A 'Next/Continue' button was found. "
-                        "This filler only handles the FIRST page. Click 'Next' manually "
-                        "and re-run for subsequent pages."
+                        "Run with --multi-page to auto-advance through wizard steps."
                     )
                     return True
             except Exception:

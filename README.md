@@ -1,6 +1,6 @@
-# 🤖 ATS Form Filler v2.2 — Semi-Automated Job Application Assistant
+# 🤖 ATS Form Filler v2.4 — Semi-Automated Job Application Assistant
 
-> ⛔ CORE RULE: This tool NEVER auto-submits applications.** It fills recognized fields and strictly stops for human review and manual submission.
+> **⛔ CORE RULE: This tool NEVER auto-submits applications.** It fills recognized fields, auto-advances wizard steps if requested, and strictly halts for human review before final submission.
 
 A production-grade Python + Playwright automation tool designed to eliminate repetitive data entry on Applicant Tracking Systems (ATS). It connects seamlessly to your existing logged-in browser session via Chrome DevTools Protocol (CDP), fills form fields using structured candidate data, and **halts for you to review and submit manually**.
 
@@ -20,21 +20,20 @@ A production-grade Python + Playwright automation tool designed to eliminate rep
 ## 🚀 Key Features
 
 - **⚡ Multi-ATS Platform Support**: Built-in specialized fillers for Greenhouse (including iframe support), Lever, Workday, and SmartRecruiters.
+- **🛂 Work Authorization & EEOC Compliance**: Automatically fills standard legal work authorization, visa sponsorship, gender, race/ethnicity, veteran, and disability dropdowns/radios.
+- **❓ Dynamic Custom Question Matcher**: Intelligently matches company-specific questions (notice period, expected salary, relocation, custom answers map) using fuzzy label heuristics.
+- **🔄 Multi-Page Step-Through Wizard (`--multi-page`)**: Automatically advances through multi-step applications (Workday/SmartRecruiters) and strictly halts only when the final Submit/Apply review screen is reached.
+- **🤝 Parser Contract Verifier (`--verify-contract`)**: Diagnostic tool for teammate Saran's resume parser to validate JSON schemas, detect field-name aliases (`fname` -> `first_name`), and compute compatibility scores.
 - **🛡️ Bot-Safe Human Mode (`--human-mode`)**: Types character-by-character with randomized 40–180ms keystroke delays to bypass bot detection.
 - **🔄 Auto-Scroll & Resilient Retry**: Automatically scrolls fields into view before filling and retries once upon timeout.
 - **📸 Intelligent Visual Capture**:
   - Full-page screenshot on completion (`--screenshot`).
   - **Instant Failure Snapshot**: Saves DOM screenshots immediately to `screenshots/failures/` whenever an ATS layout changes.
-- **📁 Enterprise Batch Processing (`--batch-dir`, `--batch-delay`)**: Sequentially processes directories of candidate JSONs with configurable rate-limiting and progress bars.
-- **📊 Real-World Data Normalization**:
-  - Handles international phone numbers (E.164, country code extraction).
-  - Decomposes complex names, stripping suffixes and honorifics.
-  - Parses geographic locations into City, State, Country.
-  - Cleans Unicode smart quotes, non-breaking spaces, and hidden characters.
+- **📁 Enterprise Batch & Worker Pool (`--batch-dir`, `--concurrency`)**: Asynchronous worker pool with backpressure control for high-throughput multi-user execution.
+- **📊 Real-World Data Normalization**: Normalizes international phone numbers (E.164), parses locations into city/state/country, strips honorifics/suffixes, and sanitizes Unicode.
 - **🔍 ATS Form Health Check (`--check-selectors`)**: Read-only diagnostic scanner that checks DOM selector health and detects selector drift without modifying the page.
-- **📈 Job Application Pipeline Tracker (`--show-tracker`)**: Job-level CSV tracking recording company, ATS platform, and success rates.
+- **📈 Job Application Pipeline Tracker (`--show-tracker`)**: Process-safe CSV pipeline tracking recording company, ATS platform, and success rates.
 - **🌐 Standalone HTML Dashboard (`--export-dashboard`)**: Generates an interactive, searchable, self-contained HTML pipeline report.
-- **📑 Session Reports (`fill_reports/`, `--show-reports`)**: Color-coded CLI review of past fill sessions.
 - **🔎 Completeness Scoring (`--validate-only`)**: Audits candidate data quality, scoring completeness from 0-100% with grade rating.
 
 ---
@@ -90,18 +89,18 @@ python -m src.main --data-file sample_candidate.json
 # --- Human-like Typing Mode (Recommended for bot-detection avoidance) ---
 python -m src.main --data-file sample_candidate.json --human-mode
 
-# --- Fill with Post-Fill Screenshot ---
-python -m src.main --data-file sample_candidate.json --screenshot
+# --- Multi-Page Wizard Mode (Auto-advance steps on Workday/SmartRecruiters) ---
+python -m src.main --data-file sample_candidate.json --multi-page
 
-# --- Dry Run (Preview what will be filled without touching the browser) ---
-python -m src.main --data-file sample_candidate.json --dry-run
+# --- Verify Parser Contract (For Teammate Saran) ---
+python -m src.main --verify-contract sample_candidate.json
 
 # --- Data Completeness & Quality Validation ---
 python -m src.main --data-file sample_candidate.json --validate-only
 python -m src.main --batch-dir samples/ --validate-only
 
-# --- Batch Processing Across Multiple Candidates ---
-python -m src.main --batch-dir samples/ --batch-delay 5 --human-mode
+# --- High-Throughput Batch Processing with Parallel Workers ---
+python -m src.main --batch-dir samples/ --concurrency 3 --user-id recruiter_1
 
 # --- ATS Form Health Check (Selector Diagnostic) ---
 python -m src.main --check-selectors
@@ -128,6 +127,9 @@ python -m src.main --export-dashboard
 ├── requirements.txt                  # Python dependencies
 ├── pyproject.toml                    # Pytest configuration
 ├── launch_browser.bat                # Windows Chrome launcher script
+├── scripts/
+│   ├── benchmark_stress.py           # Enterprise throughput & stress benchmark
+│   └── generate_samples.py           # International candidate sample generator
 ├── src/
 │   ├── main.py                       # CLI orchestrator & commands
 │   ├── config.py                     # Environment settings
@@ -137,14 +139,17 @@ python -m src.main --export-dashboard
 │   ├── browser.py                    # Playwright CDP session manager
 │   ├── ats_router.py                 # ATS platform detection & routing
 │   ├── exceptions.py                 # Custom error hierarchy (fail loudly)
+│   ├── file_lock.py                  # Process-safe cross-platform atomic locking
 │   ├── reporter.py                   # JSON session report generator
 │   ├── tracker.py                    # Job-level pipeline tracker (CSV)
 │   ├── exporter.py                   # Interactive HTML dashboard generator
 │   ├── validator.py                  # Candidate completeness & schema auditor
+│   ├── contract_verifier.py          # Saran's parser integration contract verifier
 │   ├── health_check.py               # Selector health & drift diagnostic
 │   ├── batch.py                      # Batch runner with rate limiting
+│   ├── worker_pool.py                # Parallel worker pool with concurrency control
 │   └── fillers/
-│       ├── base.py                   # Abstract base class (retry, scroll, human type)
+│       ├── base.py                   # Abstract base class (retry, scroll, human type, compliance, Q&A)
 │       ├── greenhouse.py             # Greenhouse ATS filler (with iframe support)
 │       ├── lever.py                  # Lever ATS filler
 │       ├── workday.py                # Workday ATS filler
@@ -159,23 +164,31 @@ python -m src.main --export-dashboard
     ├── test_smartrecruiters_and_features.py # SmartRecruiters & human typing tests
     ├── test_validator_and_features.py # Validator, health check & dashboard tests
     ├── test_tracker.py               # Pipeline CSV tracker tests
-    └── test_batch.py                 # Batch processing engine tests
+    ├── test_batch.py                 # Batch processing engine tests
+    ├── test_concurrency.py           # Multi-threaded file lock & worker pool tests
+    ├── test_fuzz_and_edge_cases.py   # Adversarial inputs & extreme sizes tests
+    ├── test_heavy_load_concurrency.py # 50-thread high-contention & 100-burst tests
+    ├── test_compliance_and_custom_qa.py # Work Auth, EEOC & Custom Q&A tests
+    ├── test_multi_page_wizard.py     # Multi-page wizard & submit safety tests
+    └── test_contract_verifier.py     # Resume parser contract verifier tests
 ```
 
 ---
 
 ## 🧪 Running Tests
 
-Run the full automated test suite:
-
 ```bash
+# Run full automated test suite (16 test modules):
 python -m pytest tests/ -v
+
+# Run enterprise performance benchmark:
+python scripts/benchmark_stress.py
 ```
 
 ---
 
 ## ⚖️ Core Philosophy
 
-1. **Never Auto-Submit**: The script will **never** click Submit/Apply. The user maintains 100% control over the application
-3. **Fail Loudly, Never Silently**: If an ATS layout changes, specific errors and DOM failure screenshots are created rather than typing into incorrect fields.
-4. **Resilient & Human-Centric**: Multi-selector fallbacks, automatic scroll-into-view, and human-like typing ensure maximum compatibility with real-world ATS pages.
+1. **Never Auto-Submit**: The script will **never** click Submit/Apply. The user maintains 100% control over the application.
+2. **Fail Loudly, Never Silently**: If an ATS layout changes, specific errors and DOM failure screenshots are created rather than typing into incorrect fields.
+3. **Resilient & Human-Centric**: Multi-selector fallbacks, automatic scroll-into-view, compliance automation, and human-like typing ensure maximum compatibility with real-world ATS pages.

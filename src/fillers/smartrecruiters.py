@@ -187,8 +187,14 @@ class SmartRecruitersFiller(ATSFormFiller):
             cover_letter_text, "Cover Letter",
         )
 
-        # Check for multi-page form
-        await self._check_for_next_page()
+        # --- Work Authorization, EEOC Compliance & Custom Questions ---
+        await self.fill_compliance_and_work_auth()
+        await self.fill_custom_questions()
+
+        # Multi-page wizard advance
+        advanced = await self.advance_to_next_wizard_page()
+        if not advanced:
+            await self._check_for_next_page()
 
         # HALT — Never submit
         return self.halt_for_review()

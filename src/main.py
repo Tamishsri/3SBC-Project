@@ -175,6 +175,17 @@ def parse_args() -> argparse.Namespace:
         help="Display past fill session reports and exit",
     )
     parser.add_argument(
+        "--multi-page",
+        action="store_true",
+        help="Auto-advance through multi-page wizard steps (Workday/SmartRecruiters) up to the final review screen",
+    )
+    parser.add_argument(
+        "--verify-contract",
+        type=str,
+        default=None,
+        help="Verify a JSON file from teammate Saran's resume parser against the CandidateData contract",
+    )
+    parser.add_argument(
         "--export-dashboard",
         action="store_true",
         help="Export all tracked applications to a visual, standalone HTML dashboard file",
@@ -182,7 +193,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s v2.2 | ATS Form Filler | Semi-Automated | Never auto-submits",
+        version="%(prog)s v2.4 | ATS Form Filler | Semi-Automated | Never auto-submits",
     )
     parser.add_argument(
         "--debug",
@@ -199,6 +210,7 @@ def parse_args() -> argparse.Namespace:
         and not args.show_tracker
         and not args.export_dashboard
         and not args.check_selectors
+        and not args.verify_contract
         and not args.candidate_id
         and not args.data_file
         and not args.batch_dir
@@ -206,7 +218,8 @@ def parse_args() -> argparse.Namespace:
     if no_work_mode:
         parser.error(
             "specify one of: --candidate-id, --data-file, --batch-dir, "
-            "--list-tabs, --show-reports, --show-tracker, --export-dashboard, or --check-selectors"
+            "--list-tabs, --show-reports, --show-tracker, --export-dashboard, "
+            "--verify-contract, or --check-selectors"
         )
 
     return args
@@ -555,6 +568,13 @@ async def run(args: argparse.Namespace) -> int:
         console.print(f"[dim]Saved to: {dashboard_path.resolve()}[/]")
         return 0
 
+    # Handle --verify-contract early
+    if args.verify_contract:
+        from src.contract_verifier import verify_parser_file, print_contract_diagnostic
+        diagnostic = verify_parser_file(args.verify_contract)
+        print_contract_diagnostic(diagnostic)
+        return 0 if diagnostic.is_valid else 1
+
     # Handle --validate-only (no browser needed)
     if args.validate_only:
         return run_validate_only(args)
@@ -622,7 +642,9 @@ async def run(args: argparse.Namespace) -> int:
 
         if args.human_mode:
             console.print("  [dim][bold]Human Mode ON[/] - typing character-by-character (slower but safer)[/]")
-        filler = await get_filler(page, candidate, human_mode=args.human_mode)
+        if args.multi_page:
+            console.print("  [dim][bold]Multi-Page Mode ON[/] - auto-advancing through wizard steps up to review page[/]")
+        filler = await get_filler(page, candidate, human_mode=args.human_mode, multi_page=args.multi_page)
         result = await filler.fill()
 
         # Take screenshot if requested
@@ -697,8 +719,8 @@ def main() -> None:
 
     # Print banner
     banner = Text()
-    banner.append("\n  ATS Form Filler v2.2\n", style="bold cyan")
-    banner.append("  Semi-Automated | Human-Controlled | Enterprise Batch & Pipeline Ready\n", style="dim")
+    banner.append("\n  ATS Form Filler v2.4\n", style="bold cyan")
+    banner.append("  Semi-Automated | Human-Controlled | Multi-Page Wizard & Compliance Ready\n", style="dim")
     banner.append("  [!] NEVER auto-submits - Final Review is Always Yours\n", style="bold red")
     console.print(Panel(banner, border_style="cyan"))
 

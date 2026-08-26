@@ -99,27 +99,57 @@ class Education(BaseModel):
     gpa: str | None = Field(default=None, description="GPA if listed on resume")
 
 
+class WorkAuthorization(BaseModel):
+    """Work authorization, visa sponsorship, and availability parameters."""
+
+    authorized_to_work: bool = Field(
+        default=True,
+        description="Whether candidate is legally authorized to work in target country"
+    )
+    requires_sponsorship: bool = Field(
+        default=False,
+        description="Whether candidate will now or in future require visa sponsorship"
+    )
+    notice_period_days: int | None = Field(
+        default=None,
+        description="Notice period in days (e.g., 0, 15, 30, 60, 90)"
+    )
+    expected_salary: str | None = Field(
+        default=None,
+        description="Expected annual compensation or range (e.g., '$140,000' or '25 LPA')"
+    )
+    willing_to_relocate: bool = Field(
+        default=True,
+        description="Willingness to relocate for the role"
+    )
+
+
+class Demographics(BaseModel):
+    """Voluntary self-identification / standard EEOC demographic preferences."""
+
+    gender: str = Field(
+        default="Decline to self-identify",
+        description="Gender identity preference or decline option"
+    )
+    race_ethnicity: str = Field(
+        default="Decline to self-identify",
+        description="Race/ethnicity preference or decline option"
+    )
+    veteran_status: str = Field(
+        default="I am not a protected veteran",
+        description="Veteran status (or 'Decline to self-identify')"
+    )
+    disability_status: str = Field(
+        default="I do not wish to answer",
+        description="Disability status (or 'No, I don't have a disability')"
+    )
+
+
 class CandidateData(BaseModel):
     """Top-level model containing all parsed resume data.
     
     This is the primary data structure passed to ATSFormFiller.
-    The `personal` field is required; others default to empty lists.
-    
-    Example JSON:
-    ```json
-    {
-        "personal": {
-            "first_name": "Tamish",
-            "last_name": "Sridatta",
-            "email": "tamish@example.com",
-            "phone": "+1-555-0100"
-        },
-        "experience": [...],
-        "education": [...],
-        "skills": ["Python", "Playwright"],
-        "resume_file_path": "C:/path/to/resume.pdf"
-    }
-    ```
+    The `personal` field is required; others default to empty lists/defaults.
     """
 
     personal: PersonalInfo = Field(description="Required personal/contact information")
@@ -146,6 +176,18 @@ class CandidateData(BaseModel):
     resume_file_path: str | None = Field(
         default=None,
         description="Absolute local path to resume PDF/DOCX for upload"
+    )
+    work_authorization: WorkAuthorization = Field(
+        default_factory=WorkAuthorization,
+        description="Work authorization, sponsorship, and availability preferences"
+    )
+    demographics: Demographics = Field(
+        default_factory=Demographics,
+        description="Voluntary EEOC and demographic self-identification settings"
+    )
+    custom_answers: dict[str, str] = Field(
+        default_factory=dict,
+        description="Custom question keyword-to-answer mappings for company-specific questions"
     )
 
     @field_validator("skills", "certifications", mode="before")

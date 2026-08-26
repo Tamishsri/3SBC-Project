@@ -1,0 +1,222 @@
+"""Parser Integration Contract Verifier for Teammate Saran's Resume Parser.
+
+Provides deep schema validation, type checking, field-name alias suggestions,
+and compatibility scoring to verify that output from the resume parser module
+conforms 100% to the CandidateData interface before form filling.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from pydantic import ValidationError
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from src.models import CandidateData
+
+logger = logging.getLogger(__name__)
+console = Console(safe_box=True)
+
+# Known common aliases Saran might use by mistake -> canonical name
+_COMMON_ALIASES: dict[str, str] = {
+    "fname": "personal.first_name",
+    "lname": "personal.last_name",
+    "name": "personal.first_name / personal.last_name",
+    "mail": "personal.email",
+    "e-mail": "personal.email",
+    "contact": "personal.phone",
+    "mobile": "personal.phone",
+    "telephone": "personal.phone",
+    "work_exp": "experience",
+    "work_history": "experience",
+    "employment": "experience",
+    "schools": "education",
+    "academics": "education",
+    "tech_skills": "skills",
+    "skillset": "skills",
+    "certs": "certifications",
+    "resume_path": "resume_file_path",
+    "resume": "resume_file_path",
+}
+
+
+@dataclass
+class ContractDiagnostic:
+    """Diagnostic result for a parsed resume payload."""
+    source: str
+    is_valid: bool
+    compatibility_score: float  # 0.0 to 100.0
+    candidate_name: str | None = None
+    missing_required: list[str] = field(default_factory=list)
+    type_errors: list[str] = field(default_factory=list)
+    alias_suggestions: list[tuple[str, str]] = field(default_factory=list)  # (found_key, suggested_canonical)
+    warnings: list[str] = field(default_factory=list)
+    candidate: CandidateData | None = None
+
+
+def verify_parser_payload(raw_data: dict[str, Any], source_name: str = "payload") -> ContractDiagnostic:
+    """Verify a dictionary payload from the resume parser against CandidateData contract.
+
+    Args:
+        raw_data: Dictionary output produced by the resume parser.
+        source_name: Label or filename for diagnostic output.
+
+    Returns:
+        ContractDiagnostic object with detailed findings.
+    """
+    missing_req = []
+    type_errs = []
+    alias_suggs = []
+    warnings = []
+
+    # 1. Check for common key aliases at top level and inside personal
+    for k in raw_data.keys():
+        if k.lower() in _COMMON_ALIASES:
+            alias_suggs.append((k, _COMMON_ALIASES[k.lower()]))
+
+    personal_data = raw_data.get("personal")
+    if isinstance(personal_data, dict):
+        for k in personal_data.keys():
+            if k.lower() in _COMMON_ALIASES:
+                alias_suggs.append((f"personal.{k}", _COMMON_ALIASES[k.lower()]))
+    elif "personal" not in raw_data:
+        missing_req.append("personal (top-level object)")
+
+    # 2. Try instantiating Pydantic CandidateData model
+    cand = None
+    try:
+        cand = CandidateData(**raw_data)
+        is_valid = True
+        cand_name = cand.personal.full_name
+    except ValidationError as exc:
+        is_valid = False
+        cand_name = None
+        for err in exc.errors():
+            loc = " -> ".join(str(x) for x in err["loc"])
+            msg = err["msg"]
+            err_type = err.get("type", "")
+
+            if "missing" in msg.lower() or "missing" in err_type:
+                missing_req.append(loc)
+            else:
+                type_errs.append(f"{loc}: {msg}")
+
+    except Exception as exc:
+        is_valid = False
+        cand_name = None
+        type_errs.append(f"Unexpected structure error: {exc}")
+
+    # 3. Check for empty sections and quality warnings
+    if cand:
+        if not cand.experience:
+            warnings.append("No work experience entries parsed")
+        if not cand.education:
+            warnings.append("No education entries parsed")
+        if not cand.skills:
+            warnings.append("No skills list parsed")
+        if not cand.personal.phone:
+            warnings.append("No phone number parsed in personal info")
+
+    # 4. Calculate compatibility score
+    score = 100.0
+    if not is_valid:
+        score -= 50.0
+    score -= len(missing_req) * 20.0
+    score -= len(type_errs) * 15.0
+    score -= len(alias_suggs) * 10.0
+    score -= len(warnings) * 5.0
+    score = max(0.0, min(100.0, score))
+
+    return ContractDiagnostic(
+        source=source_name,
+        is_valid=is_valid,
+        compatibility_score=score,
+        candidate_name=cand_name,
+        missing_required=missing_req,
+        type_errors=type_errs,
+        alias_suggestions=alias_suggs,
+        warnings=warnings,
+        candidate=cand,
+    )
+
+
+def verify_parser_file(file_path: Path | str) -> ContractDiagnostic:
+    """Verify a single JSON file generated by Saran's resume parser."""
+    p = Path(file_path)
+    if not p.is_file():
+        return ContractDiagnostic(
+            source=str(p),
+            is_valid=False,
+            compatibility_score=0.0,
+            type_errors=[f"File does not exist: {p}"],
+        )
+
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return ContractDiagnostic(
+            source=str(p),
+            is_valid=False,
+            compatibility_score=0.0,
+            type_errors=[f"Invalid JSON syntax: {exc}"],
+        )
+
+    if not isinstance(raw, dict):
+        return ContractDiagnostic(
+            source=str(p),
+            is_valid=False,
+            compatibility_score=0.0,
+            type_errors=["Root JSON element must be an Object {}"],
+        )
+
+    return verify_parser_payload(raw, source_name=p.name)
+
+
+def print_contract_diagnostic(diag: ContractDiagnostic) -> None:
+    """Display a rich diagnostic report for teammate Saran."""
+    console.print()
+    score_color = "green" if diag.compatibility_score >= 90 else ("yellow" if diag.compatibility_score >= 60 else "red")
+
+    status_badge = "[bold green]CONTRACT COMPLIANT[/]" if diag.is_valid else "[bold red]SCHEMA MISMATCH[/]"
+
+    console.print(Panel(
+        f"Source: [bold cyan]{diag.source}[/]\n"
+        f"Candidate: [bold]{diag.candidate_name or 'N/A'}[/]\n"
+        f"Contract Status: {status_badge}\n"
+        f"Compatibility Score: [{score_color} bold]{diag.compatibility_score:.0f}%[/]",
+        title="[bold]Saran's Parser Integration Contract Diagnostic",
+        border_style=score_color,
+    ))
+
+    if diag.missing_required:
+        console.print("[bold red]Missing Required Fields (Filler will fail without these):[/]")
+        for m in diag.missing_required:
+            console.print(f"  • [red]{m}[/]")
+        console.print()
+
+    if diag.type_errors:
+        console.print("[bold red]Type & Schema Errors:[/]")
+        for te in diag.type_errors:
+            console.print(f"  • [red]{te}[/]")
+        console.print()
+
+    if diag.alias_suggestions:
+        console.print("[bold yellow]Field Name Suggestions (Did the parser use an alias?):[/]")
+        for found, canonical in diag.alias_suggestions:
+            console.print(f"  • Found '[yellow]{found}[/]' --> Should be '[green]{canonical}[/]'")
+        console.print()
+
+    if diag.warnings:
+        console.print("[bold yellow]Quality Warnings (Non-fatal, but good to parse):[/]")
+        for w in diag.warnings:
+            console.print(f"  • [yellow]{w}[/]")
+        console.print()
+
+    if diag.is_valid and not diag.warnings and not diag.alias_suggestions:
+        console.print("[bold green]All schema checks passed! Ready for automated ATS form filling.[/]\n")

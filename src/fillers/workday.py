@@ -208,8 +208,20 @@ class WorkdayFiller(ATSFormFiller):
             "Website/Portfolio",
         )
 
-        # Check for multi-page form
-        await self.detect_next_page()
+        # --- Work Authorization, EEOC Compliance & Custom Questions ---
+        await self.fill_compliance_and_work_auth()
+        await self.fill_custom_questions()
+
+        # Multi-page wizard advance (Workday has multiple step wizards)
+        advanced = await self.advance_to_next_wizard_page()
+        if advanced:
+            # If advanced to next page, check for additional questions/EEOC on page 2/3
+            self.logger.info("[WIZARD] Checking additional step fields on next page...")
+            await self.fill_compliance_and_work_auth()
+            await self.fill_custom_questions()
+            await self.advance_to_next_wizard_page()
+        else:
+            await self.detect_next_page()
 
         # HALT — Never submit
         return self.halt_for_review()

@@ -34,6 +34,7 @@ async def get_filler(
     candidate: CandidateData,
     *,
     human_mode: bool = False,
+    multi_page: bool = False,
 ) -> ATSFormFiller:
     """Detect the ATS platform and return the appropriate filler.
 
@@ -45,6 +46,8 @@ async def get_filler(
         candidate: Validated candidate data to fill into the form.
         human_mode: If True, fillers type character-by-character to
                     simulate human input and reduce bot-detection risk.
+        multi_page: If True, fillers auto-advance through multi-step
+                    wizard forms up to the final review screen.
 
     Returns:
         An ATSFormFiller instance ready to fill the form.
@@ -56,7 +59,7 @@ async def get_filler(
     logger.info("Detecting ATS platform for: %s", url)
 
     for filler_cls in _FILLER_CLASSES:
-        filler = filler_cls(page=page, candidate=candidate, human_mode=human_mode)
+        filler = filler_cls(page=page, candidate=candidate, human_mode=human_mode, multi_page=multi_page)
         if await filler.detect():
             logger.info("[OK] Detected ATS platform: %s", filler.platform_name)
             return filler
