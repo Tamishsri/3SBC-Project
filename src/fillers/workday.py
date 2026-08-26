@@ -74,8 +74,11 @@ class WorkdayFiller(ATSFormFiller):
             'input[placeholder*="Portfolio"]',
             'label:has-text("Website") >> input',
         ],
-        "how_did_you_hear": [
-            '[data-automation-id="sourceOfHire"]',
+        "resume": [
+            'input[data-automation-id="file-upload-input"]',
+            '[data-automation-id="file-upload-drop-zone"] input[type="file"]',
+            'input[type="file"][accept*="pdf"]',
+            'input[type="file"]',
         ],
     }
 
@@ -111,6 +114,8 @@ class WorkdayFiller(ATSFormFiller):
         Returns:
             FillResult with details of what was filled/failed/skipped.
         """
+        from src.normalizer import parse_location
+
         self.logger.info("")
         self.logger.info("Starting Workday form fill...")
         self.logger.info("   URL: %s", self.page.url)
@@ -153,34 +158,58 @@ class WorkdayFiller(ATSFormFiller):
             timeout_ms=5000,
         )
 
+        # --- Resume Upload ---
+        self.logger.info("--- Uploading Resume ---")
+        if self.candidate.resume_file_path:
+            for selector in self.SELECTORS.get("resume", []):
+                uploaded = await self.safe_upload_file(
+                    self.page.locator(selector),
+                    self.candidate.resume_file_path,
+                    "Resume",
+                )
+                if uploaded:
+                    break
+        else:
+            self.logger.info("[SKIP] Resume upload - no file path provided")
+            self._skipped_fields.append("Resume")
+
         # --- Address (if available) ---
         if personal.location:
             self.logger.info("--- Filling Address ---")
-            # Try filling city from location
-            parts = personal.location.split(",")
-            city = parts[0].strip() if parts else personal.location
+            parsed_loc = parse_location(personal.location)
 
-            await self.safe_fill_with_fallbacks(
-                [self.page.locator(s) for s in self.SELECTORS["city"]],
-                city,
-                "City",
-                timeout_ms=3000,
-            )
+            if parsed_loc.city:
+                await self.safe_fill_with_fallbacks(
+                    [self.page.locator(s) for s in self.SELECTORS["city"]],
+                    parsed_loc.city,
+                    "City",
+                    timeout_ms=3000,
+                )
+            if parsed_loc.state_province:
+                await self.safe_fill_with_fallbacks(
+                    [self.page.locator(s) for s in self.SELECTORS["state"]],
+                    parsed_loc.state_province,
+                    "State/Province",
+                    timeout_ms=3000,
+                )
 
         # --- Links ---
         self.logger.info("--- Filling Links ---")
 
         await self.safe_fill_with_fallbacks(
             [self.page.locator(s) for s in self.SELECTORS["linkedin"]],
-            personal.linkedin_url,
+            self.validate_url_field(personal.linkedin_url, "LinkedIn URL"),
             "LinkedIn URL",
         )
 
         await self.safe_fill_with_fallbacks(
             [self.page.locator(s) for s in self.SELECTORS["website"]],
-            personal.website,
+            self.validate_url_field(personal.website, "Website/Portfolio"),
             "Website/Portfolio",
         )
+
+        # Check for multi-page form
+        await self.detect_next_page()
 
         # HALT — Never submit
         return self.halt_for_review()

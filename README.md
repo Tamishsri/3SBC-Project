@@ -1,176 +1,181 @@
-# 🤖 ATS Form Filler — Semi-Automated Job Application Assistant
+# 🤖 ATS Form Filler v2.2 — Semi-Automated Job Application Assistant
 
-> **⛔ This tool NEVER auto-submits applications.** It fills known fields and stops for human review.
+> **⛔ CORE RULE: This tool NEVER auto-submits applications.** It fills recognized fields and strictly stops for human review and manual submission.
 
-A Python + Playwright tool that takes the grunt work out of applying to Applicant Tracking Systems (ATS). It hooks into your existing logged-in browser session, pre-fills standard application fields using parsed resume data, and **halts for you to review and submit manually**.
+A production-grade Python + Playwright automation tool designed to eliminate repetitive data entry on Applicant Tracking Systems (ATS). It connects seamlessly to your existing logged-in browser session via Chrome DevTools Protocol (CDP), fills form fields using structured candidate data, and **halts for you to review and submit manually**.
+
+---
 
 ## 🎯 Supported ATS Platforms
 
-| Platform | URL Pattern | Status |
-|----------|------------|--------|
-| **Greenhouse** | `boards.greenhouse.io/*` | ✅ Supported |
-| **Lever** | `jobs.lever.co/*` | ✅ Supported |
+| Platform | URL Pattern | Architecture | Status |
+|---|---|---|---|
+| **Greenhouse** | `boards.greenhouse.io/*`, embedded iframes | Server-rendered & Iframe forms | ✅ Fully Supported |
+| **Lever** | `jobs.lever.co/*` | Dynamic modern forms | ✅ Fully Supported |
+| **Workday** | `*.myworkdayjobs.com/*`, `workday.com/*` | React SPA (`data-automation-id`) | ✅ Fully Supported |
+| **SmartRecruiters** | `careers.smartrecruiters.com/*` | React SPA (`data-test-id`) | ✅ Fully Supported |
 
-## 🏗️ Architecture
+---
 
-```
-main.py (CLI)
-  → api_client.py (fetch candidate data from backend)
-  → models.py (Pydantic validation — THE CONTRACT)
-  → browser.py (CDP connection to your Chrome session)
-  → ats_router.py (detect ATS platform)
-  → fillers/greenhouse.py or fillers/lever.py
-  → ⛔ HALT FOR HUMAN REVIEW
-```
+## 🚀 Key Features
+
+- **⚡ Multi-ATS Platform Support**: Built-in specialized fillers for Greenhouse (including iframe support), Lever, Workday, and SmartRecruiters.
+- **🛡️ Bot-Safe Human Mode (`--human-mode`)**: Types character-by-character with randomized 40–180ms keystroke delays to bypass bot detection.
+- **🔄 Auto-Scroll & Resilient Retry**: Automatically scrolls fields into view before filling and retries once upon timeout.
+- **📸 Intelligent Visual Capture**:
+  - Full-page screenshot on completion (`--screenshot`).
+  - **Instant Failure Snapshot**: Saves DOM screenshots immediately to `screenshots/failures/` whenever an ATS layout changes.
+- **📁 Enterprise Batch Processing (`--batch-dir`, `--batch-delay`)**: Sequentially processes directories of candidate JSONs with configurable rate-limiting and progress bars.
+- **📊 Real-World Data Normalization**:
+  - Handles international phone numbers (E.164, country code extraction).
+  - Decomposes complex names, stripping suffixes and honorifics.
+  - Parses geographic locations into City, State, Country.
+  - Cleans Unicode smart quotes, non-breaking spaces, and hidden characters.
+- **🔍 ATS Form Health Check (`--check-selectors`)**: Read-only diagnostic scanner that checks DOM selector health and detects selector drift without modifying the page.
+- **📈 Job Application Pipeline Tracker (`--show-tracker`)**: Job-level CSV tracking recording company, ATS platform, and success rates.
+- **🌐 Standalone HTML Dashboard (`--export-dashboard`)**: Generates an interactive, searchable, self-contained HTML pipeline report.
+- **📑 Session Reports (`fill_reports/`, `--show-reports`)**: Color-coded CLI review of past fill sessions.
+- **🔎 Completeness Scoring (`--validate-only`)**: Audits candidate data quality, scoring completeness from 0-100% with grade rating.
+
+---
 
 ## 📋 Prerequisites
 
 - **Python 3.11+**
-- **Chrome or Edge** browser
-- **Resume parser backend** running (teammate Saran's module)
+- **Google Chrome** or **Microsoft Edge** browser
+- **Resume parser backend** (or local JSON files)
 
-## 🚀 Quick Start
+---
 
-### 1. Install Dependencies
+## 📦 Installation
 
 ```bash
+# 1. Clone repository
+git clone https://github.com/Tamishsri/3SBC-Project.git
+cd 3sbc-project
+
+# 2. Install dependencies
 python -m pip install -r requirements.txt
+
+# 3. Install Playwright browser binaries
 python -m playwright install chromium
 ```
 
-### 2. Configure Environment
+---
+
+## 🛠️ Usage Guide
+
+### 1. Launch Browser with Debug Port
+
+Launch Chrome with remote debugging enabled:
 
 ```bash
-cp .env.example .env
-# Edit .env with your API token and settings
-```
+# On Windows (using helper script):
+launch_browser.bat
 
-### 3. Launch Browser with Debug Port
-
-Double-click `launch_browser.bat` or run manually:
-
-```bash
+# Or manually:
 chrome --remote-debugging-port=9222 --user-data-dir="%TEMP%\chrome-debug-profile"
 ```
 
-### 4. Navigate to a Job Application
+### 2. Navigate to Application
 
-In the debug browser, log in and navigate to any Greenhouse or Lever job application page.
+In the debug browser window, navigate to any job application page on Greenhouse, Lever, Workday, or SmartRecruiters.
 
-### 5. Run the Form Filler
+### 3. Run Commands
 
 ```bash
-# Fetch candidate data from API
-python -m src.main --candidate-id 123
-
-# Or use a local JSON file (for testing)
+# --- Standard Single-Candidate Fill ---
 python -m src.main --data-file sample_candidate.json
 
-# With custom options
-python -m src.main --candidate-id 123 --port 9222 --debug
+# --- Human-like Typing Mode (Recommended for bot-detection avoidance) ---
+python -m src.main --data-file sample_candidate.json --human-mode
+
+# --- Fill with Post-Fill Screenshot ---
+python -m src.main --data-file sample_candidate.json --screenshot
+
+# --- Dry Run (Preview what will be filled without touching the browser) ---
+python -m src.main --data-file sample_candidate.json --dry-run
+
+# --- Data Completeness & Quality Validation ---
+python -m src.main --data-file sample_candidate.json --validate-only
+python -m src.main --batch-dir samples/ --validate-only
+
+# --- Batch Processing Across Multiple Candidates ---
+python -m src.main --batch-dir samples/ --batch-delay 5 --human-mode
+
+# --- ATS Form Health Check (Selector Diagnostic) ---
+python -m src.main --check-selectors
+
+# --- View Open Browser Tabs ---
+python -m src.main --list-tabs
+
+# --- View Past Session Reports & Tracker ---
+python -m src.main --show-reports
+python -m src.main --show-tracker
+
+# --- Export Visual Interactive HTML Dashboard ---
+python -m src.main --export-dashboard
 ```
 
-### 6. Review & Submit Manually
+---
 
-The script will:
-1. ✅ Fill all recognized fields (Name, Email, Phone, Resume, LinkedIn, etc.)
-2. ⚠️ Log warnings for any fields it couldn't find
-3. ⛔ **HALT** with a clear message — you take over from here
+## 📂 Project Architecture
 
-## 🛡️ Error Handling Philosophy
-
-This tool **fails loudly, never silently**:
-
-- **Field not found?** → Specific error: `"Failed to locate 'Email' field on Greenhouse form. The page layout may have changed."`
-- **Invalid candidate data?** → Halts BEFORE opening the browser
-- **Browser not connected?** → Step-by-step instructions to fix it
-- **Unsupported ATS?** → Lists all supported platforms
-
-No generic `try/except`. Every error handler catches specific Playwright exceptions (`TimeoutError`, `Error`).
-
-## 📊 Data Contract (for Saran's Parser)
-
-The form filler expects data in this structure (see `src/models.py`):
-
-```json
-{
-  "personal": {
-    "first_name": "Tamish",
-    "last_name": "Sridatta",
-    "email": "tamish@example.com",
-    "phone": "+1-555-0100",
-    "linkedin_url": "https://linkedin.com/in/tamish",
-    "location": "Chennai, India"
-  },
-  "experience": [
-    {
-      "company": "TechCorp",
-      "title": "Software Engineer",
-      "start_date": "2023-01",
-      "description": "Built things"
-    }
-  ],
-  "education": [
-    {
-      "institution": "MIT",
-      "degree": "B.S. Computer Science"
-    }
-  ],
-  "skills": ["Python", "Playwright", "FastAPI"],
-  "resume_file_path": "C:/path/to/resume.pdf"
-}
 ```
+3sbc-project/
+├── sample_candidate.json             # Reference candidate JSON
+├── samples/                          # Sample candidate profiles for batch testing
+├── requirements.txt                  # Python dependencies
+├── pyproject.toml                    # Pytest configuration
+├── launch_browser.bat                # Windows Chrome launcher script
+├── src/
+│   ├── main.py                       # CLI orchestrator & commands
+│   ├── config.py                     # Environment settings
+│   ├── models.py                     # Pydantic v2 data contract
+│   ├── normalizer.py                 # Phone, location, name, text sanitization
+│   ├── api_client.py                 # Async backend API client
+│   ├── browser.py                    # Playwright CDP session manager
+│   ├── ats_router.py                 # ATS platform detection & routing
+│   ├── exceptions.py                 # Custom error hierarchy (fail loudly)
+│   ├── reporter.py                   # JSON session report generator
+│   ├── tracker.py                    # Job-level pipeline tracker (CSV)
+│   ├── exporter.py                   # Interactive HTML dashboard generator
+│   ├── validator.py                  # Candidate completeness & schema auditor
+│   ├── health_check.py               # Selector health & drift diagnostic
+│   ├── batch.py                      # Batch runner with rate limiting
+│   └── fillers/
+│       ├── base.py                   # Abstract base class (retry, scroll, human type)
+│       ├── greenhouse.py             # Greenhouse ATS filler (with iframe support)
+│       ├── lever.py                  # Lever ATS filler
+│       ├── workday.py                # Workday ATS filler
+│       └── smartrecruiters.py        # SmartRecruiters ATS filler
+└── tests/
+    ├── test_models.py                # Pydantic model validation tests
+    ├── test_normalizer.py            # Phone, location, unicode tests
+    ├── test_fillers.py               # ATS detection & selector structure tests
+    ├── test_api_client.py            # API client mocking tests
+    ├── test_integration_fillers.py   # Live Playwright DOM fill tests
+    ├── test_workday_and_reporter.py  # Workday & JSON reporter tests
+    ├── test_smartrecruiters_and_features.py # SmartRecruiters & human typing tests
+    ├── test_validator_and_features.py # Validator, health check & dashboard tests
+    ├── test_tracker.py               # Pipeline CSV tracker tests
+    └── test_batch.py                 # Batch processing engine tests
+```
+
+---
 
 ## 🧪 Running Tests
+
+Run the full automated test suite:
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-## 📂 Project Structure
+---
 
-```
-3sbc-project/
-├── README.md                   # This file
-├── requirements.txt            # Python dependencies
-├── pyproject.toml              # Project metadata
-├── .env.example                # Environment template
-├── launch_browser.bat          # Browser launcher (Windows)
-├── src/
-│   ├── __init__.py
-│   ├── main.py                 # CLI entry point & orchestrator
-│   ├── config.py               # Environment configuration
-│   ├── models.py               # Pydantic data models (CONTRACT)
-│   ├── api_client.py           # Backend API integration
-│   ├── browser.py              # Playwright CDP connection
-│   ├── ats_router.py           # ATS platform detection & routing
-│   ├── exceptions.py           # Custom exception hierarchy
-│   └── fillers/
-│       ├── __init__.py
-│       ├── base.py             # ATSFormFiller abstract base class
-│       ├── greenhouse.py       # Greenhouse form filler
-│       └── lever.py            # Lever form filler
-└── tests/
-    ├── __init__.py
-    └── test_models.py          # Data model tests
-```
+## ⚖️ Core Philosophy
 
-## 🔒 The Iron Rule
-
-```python
-# This line exists NOWHERE in the codebase:
-# await page.click("button[type='submit']")  # ← FORBIDDEN
-
-# Instead, every filler ends with:
-return self.halt_for_review()
-# ⛔ FORM FILLING COMPLETE — HALTING FOR HUMAN REVIEW
-```
-
-## 👥 Team
-
-- **Tamish Sridatta** — ATS Form Filler (this module)
-- **Saran** — Resume Parser (data provider)
-
-## 📜 License
-
-MIT
+1. **Never Auto-Submit**: The script will **never** click Submit/Apply. The user maintains 100% control over the application.
+2. **Fail Loudly, Never Silently**: If an ATS layout changes, specific errors and DOM failure screenshots are created rather than typing into incorrect fields.
+3. **Resilient & Human-Centric**: Multi-selector fallbacks, automatic scroll-into-view, and human-like typing ensure maximum compatibility with real-world ATS pages.

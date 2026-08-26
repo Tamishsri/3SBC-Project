@@ -1,0 +1,48 @@
+{
+  "personal": {
+    "first_name": "Alex",
+    "last_name": "Chen",
+    "email": "alex.chen.dev@example.com",
+    "phone": "+1 (415) 555-0199",
+    "linkedin_url": "https://linkedin.com/in/alexchen-dev",
+    "github_url": "https://github.com/alexchen",
+    "location": "San Francisco, CA, USA",
+    "website": "https://alexchen.io"
+  },
+  "experience": [
+    {
+      "company": "Stripe",
+      "title": "Senior Backend Engineer",
+      "start_date": "2022-03",
+      "description": "Architected distributed payment processing pipelines in Go and Python."
+    },
+    {
+      "company": "Twilio",
+      "title": "Software Engineer",
+      "start_date": "2019-06",
+      "end_date": "2022-02",
+      "description": "Built high-throughput SMS routing services handling 100M+ messages daily."
+    }
+  ],
+  "education": [
+    {
+      "institution": "University of California, Berkeley",
+      "degree": "B.S. in Computer Science",
+      "end_date": "2019"
+    }
+  ],
+  "skills": [
+    "Python",
+    "Go",
+    "Distributed Systems",
+    "PostgreSQL",
+    "Kafka",
+    "Docker",
+    "Kubernetes",
+    "AWS"
+  ],
+  "certifications": [
+    "AWS Certified Solutions Architect - Professional"
+  ],
+  "cover_letter": "I am eager to contribute my backend systems expertise to your engineering team."
+}

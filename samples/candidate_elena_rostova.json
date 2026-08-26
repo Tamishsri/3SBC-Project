@@ -1,0 +1,40 @@
+{
+  "personal": {
+    "first_name": "Elena",
+    "last_name": "Rostova",
+    "email": "elena.rostova@example.de",
+    "phone": "+49 30 901820",
+    "linkedin_url": "https://linkedin.com/in/elenarostova-ml",
+    "github_url": "https://github.com/erostova",
+    "location": "Berlin, Germany",
+    "website": "https://rostova.ai"
+  },
+  "experience": [
+    {
+      "company": "Delivery Hero",
+      "title": "Machine Learning Engineer",
+      "start_date": "2021-09",
+      "description": "Deployed real-time ETA prediction models reducing customer wait times by 14%."
+    }
+  ],
+  "education": [
+    {
+      "institution": "Technical University of Munich (TUM)",
+      "degree": "M.Sc. in Data Engineering and Analytics",
+      "end_date": "2021"
+    }
+  ],
+  "skills": [
+    "Python",
+    "PyTorch",
+    "MLOps",
+    "FastAPI",
+    "TensorFlow",
+    "Scikit-Learn",
+    "SQL"
+  ],
+  "certifications": [
+    "Google Cloud Professional Data Engineer"
+  ],
+  "cover_letter": "My background in machine learning and scalable model serving directly aligns with your requirements."
+}

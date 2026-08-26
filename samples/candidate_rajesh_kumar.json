@@ -1,0 +1,41 @@
+{
+  "personal": {
+    "first_name": "Rajesh",
+    "last_name": "Kumar",
+    "email": "rajesh.kumar@example.in",
+    "phone": "+91-9876543210",
+    "linkedin_url": "https://linkedin.com/in/rajeshkumar-qa",
+    "github_url": "https://github.com/rajeshkumar",
+    "location": "Bengaluru, Karnataka, India",
+    "website": "https://rajeshk.tech"
+  },
+  "experience": [
+    {
+      "company": "Flipkart",
+      "title": "Lead SDET",
+      "start_date": "2020-01",
+      "description": "Led automation framework development using Playwright and Python."
+    }
+  ],
+  "education": [
+    {
+      "institution": "National Institute of Technology Karnataka",
+      "degree": "B.Tech in Information Technology",
+      "end_date": "2019"
+    }
+  ],
+  "skills": [
+    "Playwright",
+    "Selenium",
+    "Python",
+    "pytest",
+    "CI/CD",
+    "GitHub Actions",
+    "Docker",
+    "API Testing"
+  ],
+  "certifications": [
+    "ISTQB Advanced Test Automation Engineer"
+  ],
+  "cover_letter": "I bring 5+ years of automated testing and browser automation leadership."
+}

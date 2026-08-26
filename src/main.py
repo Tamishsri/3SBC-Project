@@ -85,9 +85,35 @@ def parse_args() -> argparse.Namespace:
     data_group.add_argument(
         "--data-file",
         type=str,
-        help="Path to a local JSON file with candidate data (for testing)",
+        help="Path to a local JSON file with candidate data",
+    )
+    data_group.add_argument(
+        "--batch-dir",
+        type=str,
+        help="Directory of candidate JSON files to process sequentially (batch mode)",
     )
 
+    parser.add_argument(
+        "--batch-delay",
+        type=float,
+        default=5.0,
+        help="Seconds to wait between candidates in batch mode (default: 5, for rate limiting)",
+    )
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="Validate and score candidate JSON data quality without touching the browser",
+    )
+    parser.add_argument(
+        "--check-selectors",
+        action="store_true",
+        help="Health check: scan the browser page for all known ATS selectors without filling",
+    )
+    parser.add_argument(
+        "--show-tracker",
+        action="store_true",
+        help="Display the application pipeline tracker (job-level history) and exit",
+    )
     parser.add_argument(
         "--api-url",
         type=str,
@@ -137,9 +163,14 @@ def parse_args() -> argparse.Namespace:
         help="Display past fill session reports and exit",
     )
     parser.add_argument(
+        "--export-dashboard",
+        action="store_true",
+        help="Export all tracked applications to a visual, standalone HTML dashboard file",
+    )
+    parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s v2.1 | ATS Form Filler | Semi-Automated | Never auto-submits",
+        version="%(prog)s v2.2 | ATS Form Filler | Semi-Automated | Never auto-submits",
     )
     parser.add_argument(
         "--debug",
@@ -149,9 +180,22 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
 
-    # Validate: data source required unless --list-tabs, --show-reports, or --dry-run
-    if not args.list_tabs and not args.show_reports and not args.candidate_id and not args.data_file:
-        parser.error("one of --candidate-id or --data-file is required (unless using --list-tabs or --show-reports)")
+    # Validate: some source of work is required
+    no_work_mode = (
+        not args.list_tabs
+        and not args.show_reports
+        and not args.show_tracker
+        and not args.export_dashboard
+        and not args.check_selectors
+        and not args.candidate_id
+        and not args.data_file
+        and not args.batch_dir
+    )
+    if no_work_mode:
+        parser.error(
+            "specify one of: --candidate-id, --data-file, --batch-dir, "
+            "--list-tabs, --show-reports, --show-tracker, --export-dashboard, or --check-selectors"
+        )
 
     return args
 
@@ -318,6 +362,126 @@ def show_reports() -> int:
     return 0
 
 
+def show_tracker() -> int:
+    """Display the job-level application pipeline tracker from application_log.csv."""
+    from src.tracker import load_tracker, _DEFAULT_LOG_PATH
+
+    entries = load_tracker()
+    if not entries:
+        console.print("[yellow]No applications tracked yet. Run a fill to start tracking.[/]")
+        console.print(f"[dim]Tracker CSV: {_DEFAULT_LOG_PATH.resolve()}[/]")
+        return 0
+
+    table = Table(
+        title=f"Application Pipeline ({len(entries)} applications)",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("Date", style="dim", width=18)
+    table.add_column("Candidate", width=20)
+    table.add_column("Company", width=18)
+    table.add_column("ATS", width=16)
+    table.add_column("Rate", width=8, justify="right")
+    table.add_column("F/F/S", width=10, justify="right")
+
+    for entry in reversed(entries[-30:]):  # last 30, newest first
+        rate = float(entry.get("success_rate_pct", 0))
+        color = "green" if rate >= 90 else ("yellow" if rate >= 60 else "red")
+        filled = entry.get("fields_filled", "?")
+        failed = entry.get("fields_failed", "?")
+        skipped = entry.get("fields_skipped", "?")
+        table.add_row(
+            entry.get("timestamp", "")[:16],
+            entry.get("candidate_name", "?"),
+            entry.get("company_guess", "?"),
+            entry.get("ats_platform", "?"),
+            f"[{color}]{rate:.0f}%[/]",
+            f"{filled}/{failed}/{skipped}",
+        )
+
+    console.print(table)
+    console.print("[dim]Columns: Filled/Failed/Skipped[/]")
+    console.print(f"[dim]Tracker: {_DEFAULT_LOG_PATH.resolve()}[/]")
+    return 0
+
+
+def run_validate_only(args: argparse.Namespace) -> int:
+    """Validate candidate JSON file(s) for schema correctness and completeness."""
+    from src.validator import (
+        validate_candidate_file,
+        validate_batch_directory,
+        print_validation_report,
+        print_batch_validation_summary,
+    )
+
+    if args.data_file:
+        report = validate_candidate_file(args.data_file)
+        print_validation_report(report)
+        return 0 if report.candidate is not None else 1
+
+    if args.batch_dir:
+        from pathlib import Path as _Path
+        reports = validate_batch_directory(args.batch_dir)
+        if not reports:
+            console.print(f"[yellow]No JSON files found in: {args.batch_dir}[/]")
+            return 1
+        for report in reports:
+            print_validation_report(report)
+        print_batch_validation_summary(reports)
+        invalid_count = sum(1 for r in reports if r.candidate is None)
+        return 1 if invalid_count > 0 else 0
+
+    console.print("[red]--validate-only requires --data-file or --batch-dir[/]")
+    return 1
+
+
+async def run_batch_mode(args: argparse.Namespace, port: int) -> int:
+    """Run batch processing across all JSONs in --batch-dir."""
+    from pathlib import Path as _Path
+    from src.batch import run_batch
+
+    batch_dir = _Path(args.batch_dir)
+    if not batch_dir.is_dir():
+        console.print(f"[red]ERROR:[/] --batch-dir is not a directory: {args.batch_dir}")
+        return 1
+
+    results = await run_batch(
+        batch_dir=batch_dir,
+        port=port,
+        url=args.url,
+        human_mode=args.human_mode,
+        screenshot=args.screenshot,
+        delay_seconds=args.batch_delay,
+    )
+
+    failed = sum(1 for r in results if not r.success)
+    return 1 if failed > 0 else 0
+
+
+async def run_check_selectors(port: int, args: argparse.Namespace) -> int:
+    """Run ATS form health check on the current browser page."""
+    from src.health_check import run_health_check, print_health_report
+
+    console.print()
+    console.print(Panel(
+        "[bold cyan]ATS Selector Health Check[/]\n"
+        "Scanning page for all known selectors across all platforms...\n"
+        "[dim]No fields will be filled. Read-only inspection.[/]",
+    ))
+
+    try:
+        async with BrowserSession(port=port) as session:
+            page = await session.get_active_page()
+            if args.url:
+                await page.goto(args.url, wait_until="domcontentloaded", timeout=15000)
+            reports = await run_health_check(page)
+            print_health_report(reports)
+        return 0
+    except Exception as exc:
+        console.print(f"[red]Health check failed:[/] {exc}")
+        return 1
+
+
 async def run(args: argparse.Namespace) -> int:
     """Main execution flow.
 
@@ -343,6 +507,30 @@ async def run(args: argparse.Namespace) -> int:
     # Handle --show-reports early
     if args.show_reports:
         return show_reports()
+
+    # Handle --show-tracker early
+    if args.show_tracker:
+        return show_tracker()
+
+    # Handle --export-dashboard early
+    if args.export_dashboard:
+        from src.exporter import generate_html_dashboard
+        dashboard_path = generate_html_dashboard()
+        console.print(f"[bold green]Dashboard generated successfully![/]")
+        console.print(f"[dim]Saved to: {dashboard_path.resolve()}[/]")
+        return 0
+
+    # Handle --validate-only (no browser needed)
+    if args.validate_only:
+        return run_validate_only(args)
+
+    # Handle --batch-dir (batch processing mode)
+    if args.batch_dir:
+        return await run_batch_mode(args, port)
+
+    # Handle --check-selectors (browser needed, but no filling)
+    if args.check_selectors:
+        return await run_check_selectors(port, args)
 
     # Step 2: Fetch & validate candidate data BEFORE launching browser
     console.print()
@@ -413,6 +601,12 @@ async def run(args: argparse.Namespace) -> int:
             report_path = save_report(result, candidate)
             console.print(f"  [dim]Session report: {report_path}[/]")
 
+        # Log application to pipeline tracker CSV
+        from src.tracker import append_to_tracker
+        source_path = Path(args.data_file) if args.data_file else None
+        tracker_path = append_to_tracker(result, candidate, source_file=source_path)
+        console.print(f"  [dim]Pipeline tracker updated: {tracker_path}[/]")
+
         # Print final summary table
         console.print()
         summary_table = Table(title="Fill Summary", show_header=True, header_style="bold")
@@ -468,8 +662,8 @@ def main() -> None:
 
     # Print banner
     banner = Text()
-    banner.append("\n  ATS Form Filler v2.0\n", style="bold cyan")
-    banner.append("  Semi-Automated | Human-Controlled\n", style="dim")
+    banner.append("\n  ATS Form Filler v2.2\n", style="bold cyan")
+    banner.append("  Semi-Automated | Human-Controlled | Enterprise Batch & Pipeline Ready\n", style="dim")
     banner.append("  [!] NEVER auto-submits - Final Review is Always Yours\n", style="bold red")
     console.print(Panel(banner, border_style="cyan"))
 

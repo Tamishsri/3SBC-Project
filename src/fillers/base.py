@@ -196,6 +196,31 @@ class ATSFormFiller(ABC):
         self._failed_fields.append(field_name)
         return False
 
+    async def _screenshot_on_failure(self, field_name: str) -> None:
+        """Take a screenshot immediately when a field fails.
+
+        Saves to screenshots/fail_<field>_<timestamp>.png.
+        Helps debug selector drift after ATS UI changes.
+
+        Args:
+            field_name: Name of the field that failed (used in filename).
+        """
+        from pathlib import Path as _Path
+        from datetime import datetime as _dt
+        import re as _re
+
+        safe_name = _re.sub(r"[^\w]", "_", field_name.lower())
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        shots_dir = _Path("screenshots") / "failures"
+        shots_dir.mkdir(parents=True, exist_ok=True)
+        shot_path = shots_dir / f"fail_{safe_name}_{ts}.png"
+
+        try:
+            await self.page.screenshot(path=str(shot_path), full_page=True)
+            self.logger.warning("[SNAPSHOT] Failure screenshot saved: %s", shot_path)
+        except Exception as exc:
+            self.logger.debug("Could not take failure screenshot: %s", exc)
+
     async def safe_fill_with_fallbacks(
         self,
         locators: list[Locator],
@@ -249,6 +274,8 @@ class ATSFormFiller(ABC):
             len(locators), field_name, self.platform_name,
         )
         self._failed_fields.append(field_name)
+        # Take immediate screenshot to capture the page state at point of failure
+        await self._screenshot_on_failure(field_name)
         return False
 
     async def safe_upload_file(

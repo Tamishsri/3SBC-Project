@@ -53,3 +53,9 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# Application runtime artifacts
+fill_reports/
+screenshots/
+application_log.csv
+application_dashboard.html
