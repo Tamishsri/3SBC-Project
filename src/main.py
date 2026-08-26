@@ -6,16 +6,20 @@ Orchestrates the entire flow:
 3. Fetch & validate candidate data (HALT if invalid)
 4. Connect to browser via CDP (HALT if connection fails)
 5. Detect ATS platform & route to filler
-6. Fill the form
-7. HALT for human review — NEVER submit
+6. Fill the form (or dry-run preview)
+7. Take screenshot & save session report
+8. HALT for human review — NEVER submit
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import sys
+from datetime import datetime
+from pathlib import Path
 
 # Ensure UTF-8 stdout/stderr on Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -32,13 +36,15 @@ if hasattr(sys.stderr, "reconfigure"):
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 
 from src.api_client import fetch_candidate_data, load_candidate_from_file
-from src.ats_router import get_filler
+from src.ats_router import get_filler, _FILLER_CLASSES
 from src.browser import BrowserSession
 from src.config import Config, get_config
 from src.exceptions import ATSFillerError
+from src.reporter import save_report
 
 console = Console(safe_box=True)
 logger = logging.getLogger("ats_filler")
@@ -70,7 +76,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Data source (mutually exclusive)
-    data_group = parser.add_mutually_exclusive_group(required=True)
+    data_group = parser.add_mutually_exclusive_group(required=False)
     data_group.add_argument(
         "--candidate-id",
         type=str,
@@ -101,24 +107,160 @@ def parse_args() -> argparse.Namespace:
         help="Navigate to this URL before filling (optional)",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview what WOULD be filled without touching the browser",
+    )
+    parser.add_argument(
+        "--list-tabs",
+        action="store_true",
+        help="List all open browser tabs and exit",
+    )
+    parser.add_argument(
+        "--screenshot",
+        action="store_true",
+        help="Take a screenshot after filling (saved to screenshots/ folder)",
+    )
+    parser.add_argument(
+        "--no-report",
+        action="store_true",
+        help="Skip saving the JSON session report",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug-level logging",
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Validate: data source required unless --list-tabs or --dry-run
+    if not args.list_tabs and not args.candidate_id and not args.data_file:
+        parser.error("one of --candidate-id or --data-file is required (unless using --list-tabs)")
+
+    return args
+
+
+async def list_tabs(port: int) -> int:
+    """List all open browser tabs and their URLs.
+
+    Args:
+        port: Browser debugging port.
+
+    Returns:
+        Exit code.
+    """
+    async with BrowserSession(port=port) as session:
+        contexts = session._browser.contexts
+        if not contexts:
+            console.print("[yellow]No browser contexts found.[/]")
+            return 0
+
+        table = Table(title="Open Browser Tabs", show_header=True, header_style="bold cyan")
+        table.add_column("#", style="dim", width=4)
+        table.add_column("Title / URL", style="white")
+        table.add_column("Status", width=10)
+
+        total = 0
+        for ctx_idx, context in enumerate(contexts):
+            for page_idx, page in enumerate(context.pages):
+                total += 1
+                try:
+                    title = await page.title()
+                except Exception:
+                    title = "(no title)"
+                url = page.url
+                status = "[green]active[/]" if (ctx_idx == 0 and page_idx == len(context.pages) - 1) else ""
+                table.add_row(str(total), f"[bold]{title}[/]\n{url}", status)
+
+        console.print(table)
+        console.print(f"\n[dim]Total tabs: {total}. The script uses the last (active) tab.[/]")
+    return 0
+
+
+def show_dry_run(candidate, platform_name: str = "Unknown") -> None:
+    """Display a rich preview table of what WOULD be filled.
+
+    Args:
+        candidate: CandidateData to preview.
+        platform_name: ATS platform name if known.
+    """
+    console.print()
+    console.print(Panel(f"[bold yellow]DRY RUN PREVIEW - {platform_name}[/]\nNo browser interaction will occur.", border_style="yellow"))
+
+    table = Table(title="Fields That Would Be Filled", show_header=True, header_style="bold")
+    table.add_column("Field", style="cyan", width=25)
+    table.add_column("Value", style="white")
+    table.add_column("Status", width=12)
+
+    p = candidate.personal
+    fields = [
+        ("First Name", p.first_name),
+        ("Last Name", p.last_name),
+        ("Email", p.email),
+        ("Phone", p.phone),
+        ("Location", p.location),
+        ("LinkedIn URL", p.linkedin_url),
+        ("GitHub URL", p.github_url),
+        ("Website/Portfolio", p.website),
+        ("Resume File", candidate.resume_file_path),
+        ("Cover Letter", "[auto-generated]" if not candidate.cover_letter and candidate.experience else candidate.cover_letter),
+    ]
+
+    if candidate.experience:
+        fields.append(("Current Company", candidate.experience[0].company))
+        fields.append(("Current Title", candidate.experience[0].title))
+
+    for field_name, value in fields:
+        if value:
+            display = str(value)
+            if len(display) > 60:
+                display = display[:57] + "..."
+            table.add_row(field_name, display, "[green]FILL[/]")
+        else:
+            table.add_row(field_name, "[dim]not provided[/]", "[dim]SKIP[/]")
+
+    console.print(table)
+    console.print()
+    console.print(f"[bold cyan]Skills:[/] {', '.join(candidate.skills) or 'none'}")
+    console.print(f"[bold cyan]Experience entries:[/] {len(candidate.experience)}")
+    console.print(f"[bold cyan]Education entries:[/] {len(candidate.education)}")
+    console.print()
+    console.print("[bold yellow]Run without --dry-run to actually fill the form.[/]")
+
+
+async def take_screenshot(page, prefix: str = "fill") -> Path | None:
+    """Take a screenshot of the current browser page.
+
+    Args:
+        page: Playwright page object.
+        prefix: Filename prefix.
+
+    Returns:
+        Path to saved screenshot, or None on failure.
+    """
+    screenshots_dir = Path("screenshots")
+    screenshots_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    screenshot_path = screenshots_dir / f"{prefix}_{timestamp}.png"
+    try:
+        await page.screenshot(path=str(screenshot_path), full_page=True)
+        logger.info("Screenshot saved: %s", screenshot_path)
+        return screenshot_path
+    except Exception as exc:
+        logger.warning("Could not take screenshot: %s", exc)
+        return None
 
 
 async def run(args: argparse.Namespace) -> int:
     """Main execution flow.
-    
+
     Returns:
         Exit code: 0 for success, 1 for failure.
     """
     # Step 1: Load config
     config = get_config()
     if args.api_url:
-        # Override API URL from CLI
         config = Config(
             api_base_url=args.api_url,
             api_token=config.api_token,
@@ -127,6 +269,10 @@ async def run(args: argparse.Namespace) -> int:
         )
 
     port = args.port or config.browser_debug_port
+
+    # Handle --list-tabs early
+    if args.list_tabs:
+        return await list_tabs(port)
 
     # Step 2: Fetch & validate candidate data BEFORE launching browser
     console.print()
@@ -153,6 +299,11 @@ async def run(args: argparse.Namespace) -> int:
         f"Skills: {len(candidate.skills)}"
     )
 
+    # Handle --dry-run: show preview without browser
+    if args.dry_run:
+        show_dry_run(candidate)
+        return 0
+
     # Step 3: Connect to browser
     console.print()
     console.print(Panel("[bold blue]Step 2/3: Connecting to Browser[/]"))
@@ -165,7 +316,10 @@ async def run(args: argparse.Namespace) -> int:
             try:
                 await page.goto(args.url, wait_until="domcontentloaded", timeout=15000)
             except Exception as e:
-                console.print(f"[bold yellow]Warning:[/] Could not navigate to URL ({e}). Using current page: {page.url}")
+                console.print(
+                    f"[bold yellow]Warning:[/] Could not navigate to URL ({e}). "
+                    f"Using current page: {page.url}"
+                )
 
         console.print(f"  Active page: [link]{page.url}[/link]")
 
@@ -176,27 +330,61 @@ async def run(args: argparse.Namespace) -> int:
         filler = await get_filler(page, candidate)
         result = await filler.fill()
 
-        # Print final summary
+        # Take screenshot if requested
+        if args.screenshot:
+            screenshot_path = await take_screenshot(page, prefix=result.ats_platform.lower())
+            if screenshot_path:
+                console.print(f"  [dim]Screenshot: {screenshot_path}[/]")
+
+        # Save JSON session report
+        if not args.no_report:
+            report_path = save_report(result, candidate)
+            console.print(f"  [dim]Session report: {report_path}[/]")
+
+        # Print final summary table
         console.print()
-        if result.has_failures:
-            console.print(
-                Panel(
-                    f"[bold yellow]⚠️  Completed with {len(result.failed_fields)} "
-                    f"field(s) that could not be filled.[/]\n"
-                    f"Success rate: {result.success_rate:.0f}%",
-                    title="Result",
-                    border_style="yellow",
-                )
+        summary_table = Table(title="Fill Summary", show_header=True, header_style="bold")
+        summary_table.add_column("Category", style="cyan", width=20)
+        summary_table.add_column("Fields", style="white")
+        summary_table.add_column("Count", width=8, justify="right")
+
+        if result.filled_fields:
+            summary_table.add_row(
+                "[green]Filled[/]",
+                ", ".join(result.filled_fields),
+                f"[green]{len(result.filled_fields)}[/]",
             )
-        else:
-            console.print(
-                Panel(
-                    f"[bold green]✅ All fields filled successfully![/]\n"
-                    f"Success rate: {result.success_rate:.0f}%",
-                    title="Result",
-                    border_style="green",
-                )
+        if result.failed_fields:
+            summary_table.add_row(
+                "[red]Failed[/]",
+                ", ".join(result.failed_fields),
+                f"[red]{len(result.failed_fields)}[/]",
             )
+        if result.skipped_fields:
+            summary_table.add_row(
+                "[dim]Skipped[/]",
+                ", ".join(result.skipped_fields),
+                f"[dim]{len(result.skipped_fields)}[/]",
+            )
+
+        console.print(summary_table)
+        console.print()
+
+        border_style = "yellow" if result.has_failures else "green"
+        status_text = (
+            f"[bold yellow]Completed with {len(result.failed_fields)} field(s) not filled[/]\n"
+            if result.has_failures
+            else "[bold green]All fields filled successfully![/]\n"
+        )
+        console.print(
+            Panel(
+                status_text +
+                f"Success rate: [bold]{result.success_rate:.0f}%[/]\n\n"
+                "[bold red][!] REVIEW the form carefully and submit MANUALLY.[/]",
+                title="Result",
+                border_style=border_style,
+            )
+        )
 
     return 0
 
@@ -208,7 +396,7 @@ def main() -> None:
 
     # Print banner
     banner = Text()
-    banner.append("\n  ATS Form Filler v1.0\n", style="bold cyan")
+    banner.append("\n  ATS Form Filler v2.0\n", style="bold cyan")
     banner.append("  Semi-Automated | Human-Controlled\n", style="dim")
     banner.append("  [!] NEVER auto-submits - Final Review is Always Yours\n", style="bold red")
     console.print(Panel(banner, border_style="cyan"))

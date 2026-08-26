@@ -46,10 +46,20 @@ async def test_detect_lever(sample_candidate):
 
 
 @pytest.mark.asyncio
+async def test_detect_workday(sample_candidate):
+    """Test Workday ATS detection from URL."""
+    mock_page = MagicMock()
+    mock_page.url = "https://company.wd3.myworkdayjobs.com/careers/job/123"
+
+    filler = await get_filler(mock_page, sample_candidate)
+    assert filler.platform_name == "Workday"
+
+
+@pytest.mark.asyncio
 async def test_unsupported_ats(sample_candidate):
     """Test that unsupported platforms raise UnsupportedATSError."""
     mock_page = MagicMock()
-    mock_page.url = "https://myworkdayjobs.com/company/apply"
+    mock_page.url = "https://icims.com/jobs/company/apply"
 
     with pytest.raises(UnsupportedATSError) as exc_info:
         await get_filler(mock_page, sample_candidate)
@@ -57,6 +67,7 @@ async def test_unsupported_ats(sample_candidate):
     assert "No form filler available for" in str(exc_info.value)
     assert "Greenhouse" in str(exc_info.value)
     assert "Lever" in str(exc_info.value)
+    assert "Workday" in str(exc_info.value)
 
 
 def test_filler_selectors_structure():

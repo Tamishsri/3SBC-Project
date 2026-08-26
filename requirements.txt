@@ -1,7 +1,10 @@
-playwright>=1.40.0
-pydantic[email]>=2.0.0
-httpx>=0.25.0
-python-dotenv>=1.0.0
-rich>=13.0.0
+# ── Core Dependencies ──────────────────────────────────────────────────────────
+playwright>=1.40.0          # Browser automation via CDP
+pydantic[email]>=2.0.0      # Data validation & schema enforcement
+httpx>=0.25.0               # Async HTTP client for API calls
+python-dotenv>=1.0.0        # .env file loading
+rich>=13.0.0                # Beautiful terminal output (panels, tables, logging)
+
+# ── Testing ────────────────────────────────────────────────────────────────────
 pytest>=7.0.0
 pytest-asyncio>=0.21.0

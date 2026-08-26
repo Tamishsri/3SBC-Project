@@ -5,24 +5,25 @@
     "email": "tamish.sridatta@example.com",
     "phone": "+91-9876543210",
     "linkedin_url": "https://linkedin.com/in/tamishsri",
-    "location": "Chennai, India",
+    "github_url": "https://github.com/Tamishsri",
+    "location": "Chennai, Tamil Nadu, India",
     "website": "https://tamishsri.dev"
   },
   "experience": [
     {
       "company": "3SBC Technologies",
-      "title": "Software Developer",
-      "start_date": "2024-06",
+      "title": "Software Engineer - Automation",
+      "start_date": "2024-01",
       "end_date": null,
-      "description": "Building semi-automated recruitment tools using Python, Playwright, and FastAPI.",
+      "description": "Built semi-automated ATS form filler using Python and Playwright. Designed Pydantic data contracts for cross-team integration. Reduced manual application time by 80%.",
       "location": "Chennai, India"
     },
     {
-      "company": "TechStart Inc",
-      "title": "Junior Developer Intern",
-      "start_date": "2023-06",
-      "end_date": "2024-05",
-      "description": "Developed REST APIs and automated testing pipelines.",
+      "company": "Acme Corp",
+      "title": "Junior Developer",
+      "start_date": "2022-06",
+      "end_date": "2023-12",
+      "description": "Developed REST APIs with FastAPI, managed CI/CD pipelines, and automated testing workflows.",
       "location": "Remote"
     }
   ],
@@ -32,8 +33,8 @@
       "degree": "B.E. Computer Science and Engineering",
       "field_of_study": "Computer Science",
       "degree_level": "bachelor",
-      "graduation_date": "2025-05",
-      "gpa": "8.5"
+      "graduation_date": "2022-05",
+      "gpa": "8.7/10"
     }
   ],
   "skills": [
@@ -44,10 +45,14 @@
     "React",
     "PostgreSQL",
     "Git",
-    "Docker"
+    "Docker",
+    "Pydantic",
+    "REST APIs"
   ],
   "certifications": [
-    "AWS Cloud Practitioner"
+    "AWS Certified Cloud Practitioner",
+    "Google Associate Cloud Engineer"
   ],
+  "cover_letter": null,
   "resume_file_path": null
 }

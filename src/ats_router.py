@@ -14,6 +14,7 @@ from src.exceptions import UnsupportedATSError
 from src.fillers.base import ATSFormFiller
 from src.fillers.greenhouse import GreenhouseFiller
 from src.fillers.lever import LeverFiller
+from src.fillers.workday import WorkdayFiller
 from src.models import CandidateData
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 _FILLER_CLASSES: list[type[ATSFormFiller]] = [
     GreenhouseFiller,
     LeverFiller,
+    WorkdayFiller,
 ]
 
 

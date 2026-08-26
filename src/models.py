@@ -39,6 +39,7 @@ class PersonalInfo(BaseModel):
     email: EmailStr = Field(description="Primary contact email, validated format")
     phone: str | None = Field(default=None, description="Phone number in any format")
     linkedin_url: str | None = Field(default=None, description="Full LinkedIn profile URL")
+    github_url: str | None = Field(default=None, description="Full GitHub profile URL")
     location: str | None = Field(default=None, description="City, State or full address")
     website: str | None = Field(default=None, description="Personal website or portfolio URL")
 
@@ -137,6 +138,10 @@ class CandidateData(BaseModel):
     certifications: list[str] = Field(
         default_factory=list,
         description="Professional certifications"
+    )
+    cover_letter: str | None = Field(
+        default=None,
+        description="Optional cover letter text. If not provided, fillers auto-generate one."
     )
     resume_file_path: str | None = Field(
         default=None,
