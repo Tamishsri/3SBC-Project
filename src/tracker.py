@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+from src.file_lock import FileLock
 from src.models import CandidateData, FillResult
 
 logger = logging.getLogger(__name__)
@@ -81,9 +82,10 @@ def append_to_tracker(
     notes: str = "",
     log_path: Path | None = None,
 ) -> Path:
-    """Append a job application entry to the tracker CSV.
+    """Append a job application entry to the tracker CSV in a process-safe manner.
 
-    Creates the CSV with headers if it does not exist yet.
+    Uses FileLock to prevent race conditions and file corruption when multiple
+    users or worker processes write concurrently.
 
     Args:
         result: FillResult from the fill operation.
@@ -96,7 +98,6 @@ def append_to_tracker(
         Path to the tracker CSV file.
     """
     log_path = log_path or _DEFAULT_LOG_PATH
-    write_header = not log_path.exists() or log_path.stat().st_size == 0
 
     row = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -113,18 +114,20 @@ def append_to_tracker(
         "notes": notes,
     }
 
-    with log_path.open("a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=_COLUMNS)
-        if write_header:
-            writer.writeheader()
-        writer.writerow(row)
+    with FileLock(log_path):
+        write_header = not log_path.exists() or log_path.stat().st_size == 0
+        with log_path.open("a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=_COLUMNS)
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
 
     logger.info("[TRACKER] Entry logged to: %s", log_path)
     return log_path
 
 
 def load_tracker(log_path: Path | None = None) -> list[dict]:
-    """Load all entries from the application tracker CSV.
+    """Load all entries from the application tracker CSV in a thread-safe manner.
 
     Args:
         log_path: Path to the tracker CSV (default: application_log.csv).
@@ -135,5 +138,7 @@ def load_tracker(log_path: Path | None = None) -> list[dict]:
     log_path = log_path or _DEFAULT_LOG_PATH
     if not log_path.exists():
         return []
-    with log_path.open("r", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+
+    with FileLock(log_path):
+        with log_path.open("r", encoding="utf-8") as f:
+            return list(csv.DictReader(f))

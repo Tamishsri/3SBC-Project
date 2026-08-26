@@ -100,6 +100,18 @@ def parse_args() -> argparse.Namespace:
         help="Seconds to wait between candidates in batch mode (default: 5, for rate limiting)",
     )
     parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Number of concurrent workers for parallel batch processing (default: 1, max recommended: 5)",
+    )
+    parser.add_argument(
+        "--user-id",
+        type=str,
+        default="default",
+        help="User or process identifier for multi-user / multi-tenant tracking (default: 'default')",
+    )
+    parser.add_argument(
         "--validate-only",
         action="store_true",
         help="Validate and score candidate JSON data quality without touching the browser",
@@ -438,24 +450,47 @@ def run_validate_only(args: argparse.Namespace) -> int:
 async def run_batch_mode(args: argparse.Namespace, port: int) -> int:
     """Run batch processing across all JSONs in --batch-dir."""
     from pathlib import Path as _Path
-    from src.batch import run_batch
 
     batch_dir = _Path(args.batch_dir)
     if not batch_dir.is_dir():
         console.print(f"[red]ERROR:[/] --batch-dir is not a directory: {args.batch_dir}")
         return 1
 
-    results = await run_batch(
-        batch_dir=batch_dir,
-        port=port,
-        url=args.url,
-        human_mode=args.human_mode,
-        screenshot=args.screenshot,
-        delay_seconds=args.batch_delay,
-    )
+    if args.concurrency > 1:
+        from src.worker_pool import ConcurrentWorkerPool, TaskItem
+        json_files = sorted(batch_dir.glob("*.json"))
+        if not json_files:
+            console.print(f"[yellow]No JSON files found in: {batch_dir}[/]")
+            return 0
 
-    failed = sum(1 for r in results if not r.success)
-    return 1 if failed > 0 else 0
+        tasks = [
+            TaskItem(
+                task_id=f"{i+1:03d}_{f.stem}",
+                data_file=f,
+                job_url=args.url,
+                user_id=args.user_id,
+                human_mode=args.human_mode,
+                screenshot=args.screenshot,
+            )
+            for i, f in enumerate(json_files)
+        ]
+
+        pool = ConcurrentWorkerPool(max_concurrency=args.concurrency, port=port)
+        outcomes = await pool.run_tasks(tasks)
+        failed = sum(1 for o in outcomes if not o.success)
+        return 1 if failed > 0 else 0
+    else:
+        from src.batch import run_batch
+        results = await run_batch(
+            batch_dir=batch_dir,
+            port=port,
+            url=args.url,
+            human_mode=args.human_mode,
+            screenshot=args.screenshot,
+            delay_seconds=args.batch_delay,
+        )
+        failed = sum(1 for r in results if not r.success)
+        return 1 if failed > 0 else 0
 
 
 async def run_check_selectors(port: int, args: argparse.Namespace) -> int:

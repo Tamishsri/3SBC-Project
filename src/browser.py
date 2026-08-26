@@ -110,6 +110,47 @@ class BrowserSession:
         logger.info("Active page: %s", page.url)
         return page
 
+    async def create_isolated_page(self, url: str | None = None) -> Page:
+        """Create a dedicated, isolated tab for a specific task or worker.
+
+        Ensures multiple concurrent tasks operating on the same browser
+        do not overwrite each other's active tabs.
+
+        Args:
+            url: Optional URL to navigate the new tab to immediately.
+
+        Returns:
+            The newly created and isolated Page instance.
+        """
+        if not self._browser:
+            raise BrowserConnectionError(
+                port=self.port,
+                original_error=RuntimeError("Not connected. Call connect() first."),
+            )
+
+        contexts = self._browser.contexts
+        context = contexts[0] if contexts else await self._browser.new_context()
+        page = await context.new_page()
+
+        if url:
+            logger.info("Opening isolated tab at: %s", url)
+            await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+
+        return page
+
+    async def close_isolated_page(self, page: Page) -> None:
+        """Safely close a worker's isolated tab without closing the browser.
+
+        Args:
+            page: The Page instance to close.
+        """
+        try:
+            if not page.is_closed():
+                await page.close()
+                logger.info("Closed isolated worker tab.")
+        except Exception as exc:
+            logger.debug("Error closing page: %s", exc)
+
     async def get_page_by_url(self, url_fragment: str) -> Page | None:
         """Find a page whose URL contains the given fragment.
         
