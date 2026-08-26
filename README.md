@@ -1,6 +1,6 @@
 # 🤖 ATS Form Filler v2.2 — Semi-Automated Job Application Assistant
 
-> **⛔ CORE RULE: This tool NEVER auto-submits applications.** It fills recognized fields and strictly stops for human review and manual submission.
+> ⛔ CORE RULE: This tool NEVER auto-submits applications.** It fills recognized fields and strictly stops for human review and manual submission.
 
 A production-grade Python + Playwright automation tool designed to eliminate repetitive data entry on Applicant Tracking Systems (ATS). It connects seamlessly to your existing logged-in browser session via Chrome DevTools Protocol (CDP), fills form fields using structured candidate data, and **halts for you to review and submit manually**.
 
