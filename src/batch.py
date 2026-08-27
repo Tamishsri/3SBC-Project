@@ -55,6 +55,7 @@ async def process_single_candidate(
     allow_generic: bool = False,
     detect_captcha: bool = False,
     generate_cover_letter: bool = False,
+    interactive: bool = False,
 ) -> BatchResult:
     """Process a single candidate JSON file.
 
@@ -118,6 +119,8 @@ async def process_single_candidate(
                 human_mode=human_mode,
                 multi_page=multi_page,
                 allow_generic=allow_generic,
+                interactive=interactive,
+                candidate_file=json_path,
             )
             result = await filler.fill()
 
@@ -184,6 +187,7 @@ async def run_batch(
     detect_captcha: bool = False,
     generate_cover_letter: bool = False,
     resume: bool = False,
+    interactive: bool = False,
 ) -> list[BatchResult]:
     """Process all candidate JSON files in a directory.
 
@@ -260,6 +264,7 @@ async def run_batch(
                 allow_generic=allow_generic,
                 detect_captcha=detect_captcha,
                 generate_cover_letter=generate_cover_letter,
+                interactive=interactive,
             )
             results.append(result)
             progress.advance(task)

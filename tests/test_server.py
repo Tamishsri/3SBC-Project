@@ -38,7 +38,7 @@ def test_server_health_endpoint(dashboard_server):
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert data["version"] == "2.5"
+        assert data["version"] == "2.7"
 
 
 def test_server_dashboard_html_endpoint(dashboard_server):

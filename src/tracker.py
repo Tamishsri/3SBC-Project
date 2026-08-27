@@ -139,9 +139,16 @@ def load_tracker(log_path: Path | None = None) -> list[dict]:
     if not log_path.exists():
         return []
 
-    with FileLock(log_path):
-        with log_path.open("r", encoding="utf-8") as f:
-            return list(csv.DictReader(f))
+    try:
+        with FileLock(log_path, timeout=1.0):
+            with log_path.open("r", encoding="utf-8", errors="replace") as f:
+                return list(csv.DictReader(f))
+    except Exception:
+        try:
+            with log_path.open("r", encoding="utf-8", errors="replace") as f:
+                return list(csv.DictReader(f))
+        except Exception:
+            return []
 
 
 # Public export for context generators and diagnostics

@@ -1,4 +1,4 @@
-# 🤖 ATS Form Filler v2.6 — Enterprise Semi-Automated Job Application Assistant
+# 🤖 ATS Form Filler v2.7 — Enterprise Semi-Automated Job Application Assistant
 
 > **⛔ CORE RULE: This tool NEVER auto-submits applications.** It fills recognized fields, auto-advances wizard steps if requested, and strictly halts for human review before final submission.
 
@@ -20,18 +20,21 @@ A production-grade Python + Playwright automation suite designed to eliminate re
 
 ## 🚀 Key Features
 
-- **⚡ Multi-ATS & Generic Adaptive Engine (`--allow-generic`)**: Built-in specialized fillers for Greenhouse (with iframe support), Lever, Workday, SmartRecruiters, PLUS a semantic adaptive engine that handles arbitrary career pages worldwide.
-- **🛡️ Live CAPTCHA & Bot Challenge Interceptor (`--detect-captcha`)**: Detects Cloudflare Turnstile, Google reCAPTCHA, and hCaptcha, safely pausing with an audible alert for human resolution and auto-resuming once solved.
+- **⚡ Multi-ATS & Generic Adaptive Engine (`--allow-generic`)**: Specialized fillers for Greenhouse (with iframe support), Lever, Workday, SmartRecruiters, PLUS an adaptive heuristic engine that handles arbitrary career pages worldwide.
+- **❓ Interactive Field Prompter & Learner (`--interactive`)**: Prompts in the terminal when unmapped company questions are encountered, fills them immediately, and persists answers into candidate profiles/presets for future applications.
+- **📥 Drop-Folder Inbox Watcher Daemon (`--watch-dir inbox/`)**: Background file watcher where dropping a resume (`.pdf`, `.txt`, `.json`) into `inbox/` automatically parses it and auto-fills your active Chrome tab.
+- **🤝 Team Integration Mock API Gateway (`scripts/mock_team_backend.py`)**: Ready-to-use mock hub matching team contracts for **Saran** (Parser), **Rohit** (Scraper), and **Sushrith** (Backend API).
+- **🖱️ One-Click Desktop Launchers**: Windows batch scripts (`launch_dashboard.bat`, `launch_inbox_watcher.bat`, `launch_team_hub.bat`, `run_stress_benchmark.bat`) for instant 1-click startup.
+- **🛡️ Live CAPTCHA & Bot Challenge Interceptor (`--detect-captcha`)**: Detects Cloudflare Turnstile, Google reCAPTCHA, and hCaptcha, pausing with an audible alert for human resolution and auto-resuming once solved.
 - **✍️ Contextual Cover Letter Synthesis (`--generate-cover-letter`)**: Scrapes target company and role context from page metadata to automatically craft a tailored, high-impact cover letter.
-- **🔄 Fault-Tolerant Batch Recovery (`--resume-batch`)**: Checkpoints batch progress atomically to `.ats_batch_recovery.json` so interrupted multi-candidate runs resume seamlessly from the point of failure without duplicate work.
+- **🔄 Fault-Tolerant Batch Recovery (`--resume-batch`)**: Checkpoints batch progress atomically to `.ats_batch_recovery.json` so interrupted runs resume seamlessly from the point of failure.
 - **🔔 Real-Time Webhook & Slack Alerts (`--webhook-url`)**: Non-blocking asynchronous notifications to Slack incoming webhooks, Discord, Zapier, or custom HTTP endpoints upon application staging.
-- **🎛️ User Preference Presets (`--save-preset`, `--use-preset`)**: Save and reuse standard Work Authorization, EEOC Demographics, custom answers, and cover letter templates with non-destructive merging.
-- **📄 Offline Local Resume Fallback Parser (`--parse-resume`)**: Built-in PDF/Text parser with regex & heuristics as a high-availability fallback when external parsing services are offline.
-- **📈 Interactive Live Dashboard Server (`--serve-dashboard`)**: Lightweight embedded web server (`http://127.0.0.1:8080`) providing live application analytics with dynamic background auto-polling.
+- **🎛️ User Preference Presets (`--save-preset`, `--use-preset`)**: Save and reuse standard Work Authorization, EEOC Demographics, custom answers, and cover letter templates.
+- **📄 Offline Local Resume Fallback Parser (`--parse-resume`)**: Built-in PDF/Text parser with regex & heuristics as a high-availability offline fallback.
+- **📈 Interactive Live Dashboard Server (`--serve-dashboard`)**: Embedded web server (`http://127.0.0.1:8080`) providing live application analytics with dynamic background auto-polling.
 - **🛂 Work Authorization & EEOC Compliance**: Automatically fills standard legal work authorization, visa sponsorship, gender, race/ethnicity, veteran, and disability dropdowns/radios.
-- **❓ Dynamic Custom Question Matcher**: Intelligently matches company-specific questions (notice period, expected salary, relocation, custom answers map) using fuzzy label heuristics.
 - **🔄 Multi-Page Step-Through Wizard (`--multi-page`)**: Automatically advances through multi-step applications (Workday/SmartRecruiters) and strictly halts only when the final Submit/Apply review screen is reached.
-- **🤝 Parser Contract Verifier (`--verify-contract`)**: Diagnostic tool for teammate Saran's resume parser to validate JSON schemas, detect field-name aliases (`fname` -> `first_name`), and compute compatibility scores.
+- **🤝 Parser Contract Verifier (`--verify-contract`)**: Diagnostic tool for teammate Saran's resume parser to validate JSON schemas, detect field aliases, and compute compatibility scores.
 - **🛡️ Bot-Safe Human Mode (`--human-mode`)**: Types character-by-character with randomized 40–180ms keystroke delays to bypass bot detection.
 - **🔄 Auto-Scroll & Resilient Retry**: Automatically scrolls fields into view before filling and retries once upon timeout.
 - **📸 Visual Error Snapshots**: Saves DOM screenshots immediately to `screenshots/failures/` whenever an ATS layout changes.
@@ -40,7 +43,6 @@ A production-grade Python + Playwright automation suite designed to eliminate re
 - **🔍 ATS Form Health Check (`--check-selectors`)**: Read-only diagnostic scanner that checks DOM selector health and detects selector drift without modifying the page.
 - **📈 Job Application Pipeline Tracker (`--show-tracker`)**: Process-safe CSV pipeline tracking recording company, ATS platform, and success rates.
 - **🌐 Standalone HTML Dashboard (`--export-dashboard`)**: Generates an interactive, searchable, self-contained HTML pipeline report.
-- **🔎 Completeness Scoring (`--validate-only`)**: Audits candidate data quality, scoring completeness from 0-100% with grade rating.
 
 ---
 
@@ -82,15 +84,24 @@ launch_browser.bat
 chrome --remote-debugging-port=9222 --user-data-dir="%TEMP%\chrome-debug-profile"
 ```
 
-### 2. Navigate to Application
+### 2. Quick Desktop Launchers (Windows)
 
-In the debug browser window, navigate to any job application page on Greenhouse, Lever, Workday, SmartRecruiters, or any unlisted job portal.
+- **`launch_dashboard.bat`**: Open live web dashboard in default browser at `http://127.0.0.1:8080`.
+- **`launch_inbox_watcher.bat`**: Start folder daemon to auto-fill any resume dropped into `inbox/`.
+- **`launch_team_hub.bat`**: Launch the mock team backend hub for Saran, Rohit, and Sushrith.
+- **`run_stress_benchmark.bat`**: Run the ultra-heavy 7-vector stress test suite.
 
-### 3. Run Commands
+### 3. CLI Commands
 
 ```bash
 # --- Standard Single-Candidate Fill ---
 python -m src.main --data-file sample_resume.json
+
+# --- Interactive Prompter & Learning Mode (Prompts for unmapped questions & saves answers) ---
+python -m src.main --data-file sample_resume.json --interactive
+
+# --- Drop-Folder Inbox Watcher Daemon (Auto-fills resumes dropped into folder) ---
+python -m src.main --watch-dir inbox
 
 # --- Human-like Typing Mode (Recommended for bot-detection avoidance) ---
 python -m src.main --data-file sample_resume.json --human-mode
@@ -163,8 +174,14 @@ python -m src.main --export-dashboard
 ├── requirements.txt                  # Python dependencies
 ├── pyproject.toml                    # Pytest configuration
 ├── launch_browser.bat                # Windows Chrome launcher script
+├── launch_dashboard.bat              # One-click live dashboard launcher
+├── launch_inbox_watcher.bat          # One-click drop-folder watcher launcher
+├── launch_team_hub.bat               # One-click team mock hub launcher
+├── run_stress_benchmark.bat          # One-click ultra-heavy benchmark launcher
 ├── scripts/
 │   ├── benchmark_stress.py           # Enterprise throughput & stress benchmark
+│   ├── ultra_heavy_stress.py         # 7-vector ultra-heavy stress test suite
+│   ├── mock_team_backend.py          # Team integration mock hub (Saran, Rohit, Sushrith)
 │   └── generate_samples.py           # International candidate sample generator
 ├── src/
 │   ├── main.py                       # CLI orchestrator & commands
@@ -174,6 +191,8 @@ python -m src.main --export-dashboard
 │   ├── notifier.py                   # Real-time Webhook, Slack & Discord alerts
 │   ├── presets.py                    # User preference presets manager
 │   ├── resume_fallback.py            # Local PDF/TXT resume fallback parser
+│   ├── interactive_prompter.py       # Terminal question prompter & learning engine
+│   ├── watcher.py                    # Drop-folder inbox watcher daemon
 │   ├── server.py                     # Embedded live dashboard HTTP server
 │   ├── captcha_detector.py           # Live Turnstile / reCAPTCHA / bot challenge detector
 │   ├── cover_letter_generator.py     # Contextual cover letter synthesis engine
@@ -222,7 +241,10 @@ python -m src.main --export-dashboard
     ├── test_generic_filler.py        # Adaptive generic web form filler tests
     ├── test_captcha_detector.py      # Turnstile / reCAPTCHA detector tests
     ├── test_cover_letter_generator.py # Contextual cover letter synthesis tests
-    └── test_recovery.py              # Batch checkpointing & recovery tests
+    ├── test_recovery.py              # Batch checkpointing & recovery tests
+    ├── test_interactive_prompter.py  # Interactive question prompter & learning tests
+    ├── test_watcher.py               # Drop-folder inbox watcher daemon tests
+    └── test_team_mock_backend.py     # Team integration mock hub tests
 ```
 
 ---
@@ -230,11 +252,11 @@ python -m src.main --export-dashboard
 ## 🧪 Running Tests & Benchmarks
 
 ```bash
-# Run full automated test suite (142 tests across 23 test modules - 100% Passing):
+# Run full automated test suite (155 tests across 26 test modules - 100% Passing):
 python -m pytest tests/ -v
 
-# Run enterprise performance & stress benchmark:
-python scripts/benchmark_stress.py
+# Run ultra-heavy 7-vector stress & endurance benchmark:
+python scripts/ultra_heavy_stress.py
 ```
 
 ---
@@ -243,5 +265,5 @@ python scripts/benchmark_stress.py
 
 1. **Never Auto-Submit**: The script will **never** click Submit/Apply. The user maintains 100% control over the application.
 2. **Fail Loudly, Never Silently**: If an ATS layout changes, specific errors and DOM failure screenshots are created rather than typing into incorrect fields.
-3. **Resilient & Human-Centric**: Multi-selector fallbacks, automatic scroll-into-view, compliance automation, and human-like typing ensure maximum compatibility with real-world ATS pages.
+3. **Resilient & Human-Centric**: Multi-selector fallbacks, automatic scroll-into-view, compliance automation, interactive question learning, and human-like typing ensure maximum compatibility with real-world ATS pages.
 

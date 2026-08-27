@@ -28,6 +28,9 @@ def base_candidate():
     )
 
 
+_LAUNCH_ARGS = ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+
+
 @pytest.mark.asyncio
 async def test_wizard_advances_when_multi_page_enabled(base_candidate):
     """Verify that advance_to_next_wizard_page clicks 'Next' button."""
@@ -40,7 +43,7 @@ async def test_wizard_advances_when_multi_page_enabled(base_candidate):
     </html>
     """
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, args=_LAUNCH_ARGS)
         page = await browser.new_page()
         await page.set_content(html)
 
@@ -66,7 +69,7 @@ async def test_wizard_safety_guard_never_clicks_submit(base_candidate):
     </html>
     """
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, args=_LAUNCH_ARGS)
         page = await browser.new_page()
         await page.set_content(html)
 
@@ -91,12 +94,13 @@ async def test_wizard_disabled_by_default(base_candidate):
     </html>
     """
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, args=_LAUNCH_ARGS)
         page = await browser.new_page()
         await page.set_content(html)
 
         filler = WizardTestFiller(page, base_candidate, multi_page=False)
         advanced = await filler.advance_to_next_wizard_page()
         assert advanced is False
+        await browser.close()
 
         await browser.close()

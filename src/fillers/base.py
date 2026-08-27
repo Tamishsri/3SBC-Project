@@ -62,11 +62,15 @@ class ATSFormFiller(ABC):
         *,
         human_mode: bool = False,
         multi_page: bool = False,
+        interactive: bool = False,
+        candidate_file: str | Path | None = None,
     ) -> None:
         self.page = page
         self.candidate = candidate
         self.human_mode = human_mode
         self.multi_page = multi_page
+        self.interactive = interactive
+        self.candidate_file = candidate_file
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._filled_fields: list[str] = []
         self._failed_fields: list[str] = []
@@ -562,6 +566,43 @@ class ATSFormFiller(ABC):
                         break
                 except Exception:
                     continue
+
+    async def prompt_and_learn_field(
+        self,
+        label: str,
+        selectors: list[str],
+        field_type: str = "text",
+        choices: list[str] | None = None,
+    ) -> bool:
+        """Prompt user in real-time for an unmapped question and persist answer if in interactive mode."""
+        if not self.interactive:
+            return False
+
+        from src.interactive_prompter import prompt_user_for_field, persist_learned_answer
+        answer = prompt_user_for_field(
+            label=label,
+            field_type=field_type,
+            choices=choices,
+        )
+        if not answer:
+            return False
+
+        for sel in selectors:
+            try:
+                loc = self.page.locator(sel).first
+                if await loc.count() > 0:
+                    await self._scroll_to_element(loc)
+                    if self.human_mode:
+                        await self.human_type(loc, answer)
+                    else:
+                        await loc.fill(answer)
+                    self.logger.info("[PROMPT] Filled interactive answer for '%s': %s", label, answer)
+                    self._filled_fields.append(f"Interactive: {label}")
+                    persist_learned_answer(self.candidate, label, answer, self.candidate_file)
+                    return True
+            except Exception:
+                continue
+        return False
 
     async def advance_to_next_wizard_page(self) -> bool:
         """Advance to next wizard step on multi-page forms, ensuring NEVER to click final submit.

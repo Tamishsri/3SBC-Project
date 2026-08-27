@@ -256,9 +256,19 @@ def parse_args() -> argparse.Namespace:
         help="Resume interrupted batch processing from the last saved recovery checkpoint",
     )
     parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Prompt in terminal for unmapped form questions and learn answers into candidate profile",
+    )
+    parser.add_argument(
+        "--watch-dir",
+        metavar="WATCH_DIR",
+        help="Monitor a drop folder (e.g. 'inbox/') for new resumes and auto-fill active browser tab",
+    )
+    parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s v2.6 | ATS Form Filler | Semi-Automated | Never auto-submits",
+        version="%(prog)s v2.7 | ATS Form Filler | Semi-Automated | Never auto-submits",
     )
     parser.add_argument(
         "--debug",
@@ -283,10 +293,11 @@ def parse_args() -> argparse.Namespace:
         and not args.candidate_id
         and not args.data_file
         and not args.batch_dir
+        and not args.watch_dir
     )
     if no_work_mode:
         parser.error(
-            "specify one of: --candidate-id, --data-file, --batch-dir, "
+            "specify one of: --candidate-id, --data-file, --batch-dir, --watch-dir, "
             "--list-tabs, --show-reports, --show-tracker, --export-dashboard, "
             "--serve-dashboard, --list-presets, --save-preset, --parse-resume, "
             "--verify-contract, or --check-selectors"
@@ -715,6 +726,21 @@ async def run(args: argparse.Namespace) -> int:
     if args.batch_dir:
         return await run_batch_mode(args, port)
 
+    # Handle --watch-dir (drop-folder watcher daemon)
+    if args.watch_dir:
+        from src.watcher import run_inbox_watcher
+        await run_inbox_watcher(
+            watch_dir=args.watch_dir,
+            port=port,
+            human_mode=args.human_mode,
+            multi_page=args.multi_page,
+            allow_generic=args.allow_generic,
+            detect_captcha=args.detect_captcha,
+            generate_cover_letter=args.generate_cover_letter,
+            interactive=args.interactive,
+        )
+        return 0
+
     # Handle --check-selectors (browser needed, but no filling)
     if args.check_selectors:
         return await run_check_selectors(port, args)
@@ -791,6 +817,8 @@ async def run(args: argparse.Namespace) -> int:
             console.print("  [dim][bold]Multi-Page Mode ON[/] - auto-advancing through wizard steps up to review page[/]")
         if args.allow_generic:
             console.print("  [dim][bold]Generic Fallback ON[/] - enabled adaptive web form engine for unlisted ATS pages[/]")
+        if args.interactive:
+            console.print("  [dim][bold]Interactive Prompter ON[/] - will prompt in terminal for unmapped questions and learn answers[/]")
 
         filler = await get_filler(
             page,
@@ -798,6 +826,8 @@ async def run(args: argparse.Namespace) -> int:
             human_mode=args.human_mode,
             multi_page=args.multi_page,
             allow_generic=args.allow_generic,
+            interactive=args.interactive,
+            candidate_file=args.data_file,
         )
         result = await filler.fill()
 
@@ -877,12 +907,16 @@ def main() -> None:
     args = parse_args()
     setup_logging(level="DEBUG" if args.debug else "INFO")
 
-    # Print banner
-    banner = Text()
-    banner.append("\n  ATS Form Filler v2.6\n", style="bold cyan")
-    banner.append("  Semi-Automated | Human-Controlled | Multi-Page & Adaptive Web Intelligence\n", style="dim")
-    banner.append("  [!] NEVER auto-submits - Final Review is Always Yours\n", style="bold red")
-    console.print(Panel(banner, border_style="cyan"))
+    console.print(
+        Panel(
+            Text.from_markup(
+                "[bold cyan]ATS Form Filler v2.7[/]\n"
+                "[dim]Semi-Automated | Human-Controlled | Multi-Page & Adaptive Web Intelligence[/]\n"
+                "[bold red][!] NEVER auto-submits - Final Review is Always Yours[/]"
+            ),
+            border_style="cyan",
+        )
+    )
 
     try:
         exit_code = asyncio.run(run(args))

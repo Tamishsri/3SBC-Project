@@ -137,7 +137,7 @@ class DashboardHTTPRequestHandler(BaseHTTPRequestHandler):
             pass
 
     def _serve_health(self) -> None:
-        body = json.dumps({"status": "ok", "version": "2.5"}).encode("utf-8")
+        body = json.dumps({"status": "ok", "version": "2.7"}).encode("utf-8")
         try:
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

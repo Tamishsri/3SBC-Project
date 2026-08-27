@@ -109,6 +109,7 @@ class ConcurrentWorkerPool:
                     human_mode=item.human_mode,
                     multi_page=item.multi_page,
                     allow_generic=item.allow_generic,
+                    candidate_file=item.data_file,
                 )
                 result = await filler.fill()
 

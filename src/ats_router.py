@@ -37,25 +37,25 @@ async def get_filler(
     human_mode: bool = False,
     multi_page: bool = False,
     allow_generic: bool = False,
+    interactive: bool = False,
+    candidate_file: str | Path | None = None,
 ) -> ATSFormFiller:
-    """Detect the ATS platform and return the appropriate filler.
+    """Detect the ATS platform from the page URL and return the matching filler.
 
-    Iterates through registered fillers and returns the first one
-    whose detect() method returns True. If none match and allow_generic
-    is True, falls back to GenericAdaptiveFiller.
+    Iterates through all registered filler classes, calling their detect()
+    method. Returns the first match.
 
     Args:
-        page: The Playwright page with the ATS application form.
-        candidate: Validated candidate data to fill into the form.
-        human_mode: If True, fillers type character-by-character to
-                    simulate human input and reduce bot-detection risk.
-        multi_page: If True, fillers auto-advance through multi-step
-                    wizard forms up to the final review screen.
-        allow_generic: If True, uses GenericAdaptiveFiller when no
-                       specialized platform matches.
+        page: Playwright Page object.
+        candidate: CandidateData to fill into the form.
+        human_mode: If True, type with human-like delays.
+        multi_page: If True, auto-advance multi-step wizard applications.
+        allow_generic: If True, fallback to GenericAdaptiveFiller for arbitrary web forms.
+        interactive: If True, prompt user for unmapped questions and learn answers.
+        candidate_file: Optional file path to persist learned answers to disk.
 
     Returns:
-        An ATSFormFiller instance ready to fill the form.
+        An instance of the appropriate ATSFormFiller subclass.
 
     Raises:
         UnsupportedATSError: If no filler matches the current page.
@@ -64,14 +64,28 @@ async def get_filler(
     logger.info("Detecting ATS platform for: %s", url)
 
     for filler_cls in _FILLER_CLASSES:
-        filler = filler_cls(page=page, candidate=candidate, human_mode=human_mode, multi_page=multi_page)
+        filler = filler_cls(
+            page=page,
+            candidate=candidate,
+            human_mode=human_mode,
+            multi_page=multi_page,
+            interactive=interactive,
+            candidate_file=candidate_file,
+        )
         if await filler.detect():
             logger.info("[OK] Detected ATS platform: %s", filler.platform_name)
             return filler
         logger.debug("   Not %s", filler_cls.platform_name)
 
     if allow_generic:
-        generic_filler = GenericAdaptiveFiller(page=page, candidate=candidate, human_mode=human_mode, multi_page=multi_page)
+        generic_filler = GenericAdaptiveFiller(
+            page=page,
+            candidate=candidate,
+            human_mode=human_mode,
+            multi_page=multi_page,
+            interactive=interactive,
+            candidate_file=candidate_file,
+        )
         if await generic_filler.detect():
             logger.info("[OK] Using Adaptive Generic Web Form filler for: %s", url)
             return generic_filler
