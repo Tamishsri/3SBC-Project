@@ -11,18 +11,20 @@ import json
 import logging
 import threading
 import webbrowser
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from src.exporter import generate_html_dashboard
+from src.exporter import build_html_dashboard_content
 from src.tracker import load_tracker
 
 logger = logging.getLogger(__name__)
 
 
 class DashboardHTTPRequestHandler(BaseHTTPRequestHandler):
-    """Custom HTTP handler serving live dashboard and API stats."""
+    """Custom multi-threaded HTTP handler serving live dashboard and API stats."""
+
+    protocol_version = "HTTP/1.1"
 
     def do_GET(self) -> None:
         if self.path in ("/", "/dashboard", "/index.html"):
@@ -36,15 +38,14 @@ class DashboardHTTPRequestHandler(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(b"404 Not Found")
 
     def _serve_dashboard_html(self) -> None:
-        """Regenerate and return the latest dashboard HTML."""
+        """Regenerate and return the latest dashboard HTML in-memory."""
         try:
-            temp_dashboard = Path("application_dashboard.html")
-            generate_html_dashboard(output_path=temp_dashboard)
-            content = temp_dashboard.read_text(encoding="utf-8")
+            content = build_html_dashboard_content()
 
             # Inject auto-refresh poll script before </body>
             live_refresh_script = """
@@ -71,13 +72,21 @@ class DashboardHTTPRequestHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(body)
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            # Client disconnected early
+            pass
         except Exception as exc:
-            self.send_response(500)
-            self.send_header("Content-Type", "text/plain")
-            self.end_headers()
-            self.wfile.write(f"Server Error: {exc}".encode("utf-8"))
+            try:
+                self.send_response(500)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(f"Server Error: {exc}".encode("utf-8"))
+            except Exception:
+                pass
 
     def _serve_api_stats(self) -> None:
         """Return aggregated application stats as JSON."""
@@ -103,28 +112,41 @@ class DashboardHTTPRequestHandler(BaseHTTPRequestHandler):
             "recent_count": min(total, 10),
         }
         body = json.dumps(stats, indent=2).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
 
     def _serve_api_tracker(self) -> None:
         """Return all raw application rows as JSON."""
         entries = load_tracker()
         body = json.dumps(entries, indent=2).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
 
     def _serve_health(self) -> None:
         body = json.dumps({"status": "ok", "version": "2.5"}).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
 
     def log_message(self, format: str, *args: Any) -> None:
         # Suppress noisy standard HTTP logs in production console
@@ -136,7 +158,7 @@ def run_server(
     port: int = 8080,
     open_browser: bool = True,
     block: bool = True,
-) -> HTTPServer:
+) -> ThreadingHTTPServer:
     """Start the live dashboard HTTP server.
 
     Args:
@@ -146,10 +168,10 @@ def run_server(
         block: If True, blocks on serve_forever(); if False, starts in background thread.
 
     Returns:
-        HTTPServer instance.
+        ThreadingHTTPServer instance.
     """
     server_address = (host, port)
-    httpd = HTTPServer(server_address, DashboardHTTPRequestHandler)
+    httpd = ThreadingHTTPServer(server_address, DashboardHTTPRequestHandler)
     url = f"http://{host}:{port}/"
 
     logger.info("[SERVER] Live Dashboard running at: %s", url)

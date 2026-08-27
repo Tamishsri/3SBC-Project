@@ -14,16 +14,8 @@ from pathlib import Path
 from src.tracker import load_tracker
 
 
-def generate_html_dashboard(output_path: Path | None = None) -> Path:
-    """Generate a modern, standalone HTML dashboard of all job applications.
-
-    Args:
-        output_path: Target path for the HTML file (default: application_dashboard.html).
-
-    Returns:
-        Path to the generated HTML file.
-    """
-    output_path = output_path or Path("application_dashboard.html")
+def build_html_dashboard_content() -> str:
+    """Build the complete HTML dashboard string in memory."""
     entries = load_tracker()
 
     # Load session reports for deep field failure analytics
@@ -76,18 +68,24 @@ def generate_html_dashboard(output_path: Path | None = None) -> Path:
         </tr>
         """)
 
-    table_body = "\n".join(rows_html) if rows_html else '<tr><td colspan="7" class="text-center">No applications tracked yet.</td></tr>'
+    table_body = "\n".join(rows_html) if rows_html else """
+    <tr>
+        <td colspan="7" class="empty-state">No job applications logged yet. Run a fill command to start tracking.</td>
+    </tr>
+    """
 
-    # Build platform cards HTML
-    platform_cards = []
-    for p_name, count in platforms.items():
-        platform_cards.append(f"""
-        <div class="stat-card mini">
-            <div class="stat-label">{p_name}</div>
-            <div class="stat-val">{count}</div>
-        </div>
-        """)
-    platform_cards_html = "\n".join(platform_cards)
+    # Top platform badges
+    platform_badges = " ".join(
+        f'<span class="platform-pill">{plat}: {count}</span>'
+        for plat, count in sorted(platforms.items(), key=lambda x: x[1], reverse=True)
+    ) or '<span class="text-muted">None</span>'
+
+    # Top failed fields
+    top_failed = sorted(failed_fields_count.items(), key=lambda x: x[1], reverse=True)[:5]
+    failed_pills = " ".join(
+        f'<span class="badge badge-danger">{field} ({count})</span>'
+        for field, count in top_failed
+    ) or '<span class="text-success">None (All fields filling reliably)</span>'
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -96,122 +94,133 @@ def generate_html_dashboard(output_path: Path | None = None) -> Path:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ATS Form Filler — Application Pipeline Dashboard</title>
+    <title>ATS Application Pipeline Dashboard</title>
     <style>
         :root {{
             --bg: #0f172a;
-            --card-bg: #1e293b;
-            --border: #334155;
-            --text: #f8fafc;
+            --surface: #1e293b;
+            --surface-border: #334155;
+            --text-primary: #f8fafc;
             --text-muted: #94a3b8;
-            --primary: #38bdf8;
+            --accent: #38bdf8;
             --success: #4ade80;
             --warning: #facc15;
             --danger: #f87171;
+            --pill-bg: #334155;
         }}
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
-            color: var(--text);
-            padding: 2rem;
+            color: var(--text-primary);
             line-height: 1.5;
+            padding: 2rem 1rem;
         }}
         .container {{ max-width: 1200px; margin: 0 auto; }}
         header {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 1.5rem;
             margin-bottom: 2rem;
+            border-bottom: 1px solid var(--surface-border);
+            padding-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
         }}
-        h1 {{ font-size: 1.75rem; color: var(--primary); font-weight: 700; }}
-        .subtitle {{ color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem; }}
+        h1 {{ font-size: 1.75rem; font-weight: 700; color: var(--text-primary); }}
         .badge-live {{
             background: rgba(56, 189, 248, 0.15);
-            color: var(--primary);
-            padding: 0.4rem 0.8rem;
-            border-radius: 9999px;
-            font-size: 0.8rem;
-            font-weight: 600;
+            color: var(--accent);
             border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
         }}
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }}
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }}
         .stat-card {{
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--surface-border);
             padding: 1.25rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            border-radius: 0.75rem;
         }}
-        .stat-card.mini {{ padding: 0.75rem 1rem; }}
-        .stat-label {{ color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }}
-        .stat-val {{ font-size: 2rem; font-weight: 700; color: var(--text); }}
-        .stat-val.primary {{ color: var(--primary); }}
-        .stat-val.success {{ color: var(--success); }}
+        .stat-label {{ font-size: 0.875rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }}
+        .stat-value {{ font-size: 2rem; font-weight: 700; margin-top: 0.25rem; color: var(--text-primary); }}
         .card {{
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--surface-border);
+            border-radius: 0.75rem;
             padding: 1.5rem;
             margin-bottom: 2rem;
         }}
-        .card-header {{ font-size: 1.15rem; font-weight: 600; margin-bottom: 1rem; color: var(--text); }}
+        .card-header {{ font-size: 1.15rem; font-weight: 600; margin-bottom: 1rem; }}
+        .search-bar {{
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            border: 1px solid var(--surface-border);
+            color: var(--text-primary);
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }}
+        .search-bar:focus {{ outline: none; border-color: var(--accent); }}
         table {{
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.9rem;
             text-align: left;
+            font-size: 0.9rem;
+        }}
+        th, td {{
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--surface-border);
         }}
         th {{
-            background: #0f172a;
             color: var(--text-muted);
             font-weight: 600;
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid var(--border);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            background: rgba(15, 23, 42, 0.4);
         }}
-        td {{
-            padding: 0.85rem 1rem;
-            border-bottom: 1px solid var(--border);
-            vertical-align: middle;
-        }}
-        tr:hover td {{ background: rgba(255, 255, 255, 0.02); }}
+        tr:hover {{ background: rgba(255, 255, 255, 0.02); }}
         .badge {{
-            display: inline-block;
-            padding: 0.25rem 0.6rem;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 0.8rem;
-        }}
-        .badge-success {{ background: rgba(74, 222, 128, 0.15); color: var(--success); border: 1px solid rgba(74, 222, 128, 0.3); }}
-        .badge-warning {{ background: rgba(250, 204, 21, 0.15); color: var(--warning); border: 1px solid rgba(250, 204, 21, 0.3); }}
-        .badge-danger {{ background: rgba(248, 113, 113, 0.15); color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.3); }}
-        .platform-pill {{
-            background: #334155;
-            color: #cbd5e1;
             padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-block;
         }}
-        .job-link {{ color: var(--primary); text-decoration: none; word-break: break-all; }}
+        .badge-success {{ background: rgba(74, 222, 128, 0.15); color: var(--success); }}
+        .badge-warning {{ background: rgba(250, 204, 21, 0.15); color: var(--warning); }}
+        .badge-danger {{ background: rgba(248, 113, 113, 0.15); color: var(--danger); }}
+        .platform-pill {{
+            background: var(--pill-bg);
+            color: var(--text-primary);
+            padding: 0.25rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+        }}
+        .job-link {{ color: var(--accent); text-decoration: none; word-break: break-all; }}
         .job-link:hover {{ text-decoration: underline; }}
         .text-success {{ color: var(--success); font-weight: 600; }}
         .text-danger {{ color: var(--danger); font-weight: 600; }}
         .text-muted {{ color: var(--text-muted); }}
-        .text-center {{ text-align: center; padding: 2rem !important; color: var(--text-muted); }}
-        .search-bar {{
-            width: 100%;
-            padding: 0.65rem 1rem;
-            background: #0f172a;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text);
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
+        .empty-state {{ text-align: center; padding: 2rem; color: var(--text-muted); font-style: italic; }}
+        footer {{
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 3rem;
+            border-top: 1px solid var(--surface-border);
+            padding-top: 1.5rem;
         }}
-        .search-bar:focus {{ outline: none; border-color: var(--primary); }}
-        footer {{ text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 2rem; }}
     </style>
 </head>
 <body>
@@ -219,31 +228,34 @@ def generate_html_dashboard(output_path: Path | None = None) -> Path:
         <header>
             <div>
                 <h1>ATS Form Filler — Application Pipeline</h1>
-                <div class="subtitle">Semi-Automated Application Staging Dashboard & Analytics</div>
+                <p class="text-muted">Updated: {now_str} • Semi-Automated Applications Dashboard</p>
             </div>
-            <div class="badge-live">Updated: {now_str}</div>
+            <div class="badge-live">Live Pipeline Tracker</div>
         </header>
 
-        <div class="grid">
+        <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-label">Total Applications</div>
-                <div class="stat-val primary">{total_apps}</div>
+                <div class="stat-value">{total_apps}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Avg Fill Success Rate</div>
-                <div class="stat-val success">{avg_rate:.0f}%</div>
+                <div class="stat-label">Avg Success Rate</div>
+                <div class="stat-value" style="color: {'var(--success)' if avg_rate >= 90 else ('var(--warning)' if avg_rate >= 60 else 'var(--danger)')}">{avg_rate:.1f}%</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Supported ATS Platforms</div>
-                <div class="stat-val">4</div>
+                <div class="stat-label">ATS Platforms Used</div>
+                <div class="stat-value">{len(platforms)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Top Platforms</div>
+                <div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.35rem;">{platform_badges}</div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header">Applications by ATS Platform</div>
-            <div class="grid" style="margin-bottom: 0;">
-                {platform_cards_html or '<div class="text-muted">No platforms tracked yet.</div>'}
-            </div>
+            <div class="card-header">Selector Health & Failure Analytics</div>
+            <p class="text-muted" style="margin-bottom: 0.75rem; font-size: 0.85rem;">Most frequent field dropouts (useful for tracking ATS DOM changes):</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">{failed_pills}</div>
         </div>
 
         <div class="card">
@@ -270,7 +282,7 @@ def generate_html_dashboard(output_path: Path | None = None) -> Path:
         </div>
 
         <footer>
-            ATS Form Filler v2.4 | Built with Playwright & Python | Core Rule: Never Auto-Submits
+            ATS Form Filler v2.6 | Built with Playwright & Python | Core Rule: Never Auto-Submits
         </footer>
     </div>
 
@@ -294,5 +306,19 @@ def generate_html_dashboard(output_path: Path | None = None) -> Path:
 </body>
 </html>
 """
+    return html_content
+
+
+def generate_html_dashboard(output_path: Path | None = None) -> Path:
+    """Generate a modern, standalone HTML dashboard of all job applications.
+
+    Args:
+        output_path: Target path for the HTML file (default: application_dashboard.html).
+
+    Returns:
+        Path to the generated HTML file.
+    """
+    output_path = output_path or Path("application_dashboard.html")
+    html_content = build_html_dashboard_content()
     output_path.write_text(html_content, encoding="utf-8")
     return output_path

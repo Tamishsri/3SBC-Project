@@ -59,3 +59,5 @@ fill_reports/
 screenshots/
 application_log.csv
 application_dashboard.html
+.ats_*.json
+*.lock

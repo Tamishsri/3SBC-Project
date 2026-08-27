@@ -121,3 +121,7 @@ class FileLock:
                         self.lock_file_path.unlink()
                 except OSError:
                     pass
+
+
+# Alias for backward compatibility
+ProcessFileLock = FileLock

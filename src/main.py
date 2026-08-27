@@ -33,6 +33,11 @@ if hasattr(sys.stderr, "reconfigure"):
     except Exception:
         pass
 
+# Add project root to sys.path for direct script execution
+_project_root = str(Path(__file__).resolve().parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
@@ -231,9 +236,29 @@ def parse_args() -> argparse.Namespace:
         help="Extract candidate data directly from a local .pdf or .txt resume file",
     )
     parser.add_argument(
+        "--allow-generic",
+        action="store_true",
+        help="Enable adaptive generic web form filler fallback for unlisted ATS platforms & custom job portals",
+    )
+    parser.add_argument(
+        "--detect-captcha",
+        action="store_true",
+        help="Scan page for Cloudflare Turnstile, reCAPTCHA, and bot challenges with human intervention pause",
+    )
+    parser.add_argument(
+        "--generate-cover-letter",
+        action="store_true",
+        help="Synthesize a tailored contextual cover letter from active page company & role metadata",
+    )
+    parser.add_argument(
+        "--resume-batch",
+        action="store_true",
+        help="Resume interrupted batch processing from the last saved recovery checkpoint",
+    )
+    parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s v2.5 | ATS Form Filler | Semi-Automated | Never auto-submits",
+        version="%(prog)s v2.6 | ATS Form Filler | Semi-Automated | Never auto-submits",
     )
     parser.add_argument(
         "--debug",
@@ -532,6 +557,9 @@ async def run_batch_mode(args: argparse.Namespace, port: int) -> int:
                 screenshot=args.screenshot,
                 webhook_url=args.webhook_url,
                 preset=args.use_preset,
+                allow_generic=args.allow_generic,
+                detect_captcha=args.detect_captcha,
+                generate_cover_letter=args.generate_cover_letter,
             )
             for i, f in enumerate(json_files)
         ]
@@ -552,6 +580,10 @@ async def run_batch_mode(args: argparse.Namespace, port: int) -> int:
             delay_seconds=args.batch_delay,
             webhook_url=args.webhook_url,
             preset=args.use_preset,
+            allow_generic=args.allow_generic,
+            detect_captcha=args.detect_captcha,
+            generate_cover_letter=args.generate_cover_letter,
+            resume=args.resume_batch,
         )
         failed = sum(1 for r in results if not r.success)
         return 1 if failed > 0 else 0
@@ -745,16 +777,33 @@ async def run(args: argparse.Namespace) -> int:
         console.print()
         console.print(Panel("[bold blue]Step 3/3: Filling Application Form[/]"))
 
+        if args.detect_captcha:
+            from src.captcha_detector import handle_captcha_challenge
+            await handle_captcha_challenge(page)
+
+        if args.generate_cover_letter:
+            from src.cover_letter_generator import augment_candidate_cover_letter
+            candidate = await augment_candidate_cover_letter(candidate, page)
+
         if args.human_mode:
             console.print("  [dim][bold]Human Mode ON[/] - typing character-by-character (slower but safer)[/]")
         if args.multi_page:
             console.print("  [dim][bold]Multi-Page Mode ON[/] - auto-advancing through wizard steps up to review page[/]")
-        filler = await get_filler(page, candidate, human_mode=args.human_mode, multi_page=args.multi_page)
+        if args.allow_generic:
+            console.print("  [dim][bold]Generic Fallback ON[/] - enabled adaptive web form engine for unlisted ATS pages[/]")
+
+        filler = await get_filler(
+            page,
+            candidate,
+            human_mode=args.human_mode,
+            multi_page=args.multi_page,
+            allow_generic=args.allow_generic,
+        )
         result = await filler.fill()
 
         # Take screenshot if requested
         if args.screenshot:
-            screenshot_path = await take_screenshot(page, prefix=result.ats_platform.lower())
+            screenshot_path = await take_screenshot(page, prefix=result.ats_platform.lower().replace(" ", "_"))
             if screenshot_path:
                 console.print(f"  [dim]Screenshot: {screenshot_path}[/]")
 
@@ -830,8 +879,8 @@ def main() -> None:
 
     # Print banner
     banner = Text()
-    banner.append("\n  ATS Form Filler v2.5\n", style="bold cyan")
-    banner.append("  Semi-Automated | Human-Controlled | Multi-Page & Enterprise Automation\n", style="dim")
+    banner.append("\n  ATS Form Filler v2.6\n", style="bold cyan")
+    banner.append("  Semi-Automated | Human-Controlled | Multi-Page & Adaptive Web Intelligence\n", style="dim")
     banner.append("  [!] NEVER auto-submits - Final Review is Always Yours\n", style="bold red")
     console.print(Panel(banner, border_style="cyan"))
 

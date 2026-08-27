@@ -231,7 +231,7 @@ class ATSFormFiller(ABC):
 
     async def safe_fill_with_fallbacks(
         self,
-        locators: list[Locator],
+        locators: list[Locator | str],
         value: str | None,
         field_name: str,
         *,
@@ -243,7 +243,7 @@ class ATSFormFiller(ABC):
         logs a specific error identifying the field and platform.
 
         Args:
-            locators: List of Playwright locators to try, in priority order.
+            locators: List of Playwright locators or CSS selector strings to try.
             value: The value to fill.
             field_name: Human-readable field name.
             timeout_ms: Timeout per locator attempt.
@@ -256,7 +256,8 @@ class ATSFormFiller(ABC):
             self._skipped_fields.append(field_name)
             return False
 
-        for i, locator in enumerate(locators, 1):
+        for i, loc_item in enumerate(locators, 1):
+            locator = self.page.locator(loc_item) if isinstance(loc_item, str) else loc_item
             try:
                 await locator.wait_for(state="visible", timeout=timeout_ms)
                 await self._scroll_to_element(locator)
@@ -288,23 +289,24 @@ class ATSFormFiller(ABC):
 
     async def safe_upload_file(
         self,
-        locator: Locator,
+        locator: Locator | str,
         file_path: str | None,
-        field_name: str,
+        field_name: str = "Resume",
         *,
         timeout_ms: int = 5000,
     ) -> bool:
         """Safely upload a file to a form field.
 
         Args:
-            locator: Playwright locator for the file input element.
+            locator: Playwright locator or CSS selector string for file input.
             file_path: Absolute path to the file to upload.
-            field_name: Human-readable name (e.g., 'Resume').
+            field_name: Human-readable name (default: 'Resume').
             timeout_ms: Max wait time for the file input element.
 
         Returns:
             True if upload was successful.
         """
+        loc = self.page.locator(locator) if isinstance(locator, str) else locator
         if file_path is None:
             self.logger.info("[SKIP] '%s' upload - no file path provided", field_name)
             self._skipped_fields.append(field_name)
@@ -319,8 +321,8 @@ class ATSFormFiller(ABC):
             return False
 
         try:
-            await locator.wait_for(state="attached", timeout=timeout_ms)
-            await locator.set_input_files(str(path))
+            await loc.wait_for(state="attached", timeout=timeout_ms)
+            await loc.set_input_files(str(path))
             self.logger.info("[OK] Uploaded '%s': %s", field_name, path.name)
             self._filled_fields.append(field_name)
             return True
@@ -331,6 +333,7 @@ class ATSFormFiller(ABC):
                 field_name, self.platform_name, timeout_ms,
             )
             self._failed_fields.append(field_name)
+            await self._screenshot_on_failure(field_name)
             return False
 
         except PlaywrightError as exc:
@@ -625,6 +628,62 @@ class ATSFormFiller(ABC):
             except Exception:
                 continue
         return False
+
+    def mark_filled(self, field_name: str) -> None:
+        """Record a field as filled."""
+        if field_name not in self._filled_fields:
+            self._filled_fields.append(field_name)
+
+    def mark_failed(self, field_name: str) -> None:
+        """Record a field as failed."""
+        if field_name not in self._failed_fields:
+            self._failed_fields.append(field_name)
+
+    def mark_skipped(self, field_name: str) -> None:
+        """Record a field as skipped."""
+        if field_name not in self._skipped_fields:
+            self._skipped_fields.append(field_name)
+
+    async def check_and_handle_captcha(self, timeout_seconds: float = 60.0) -> bool:
+        """Pre-fill hook to check for active bot challenges and pause for human resolution."""
+        try:
+            from src.captcha_detector import handle_captcha_challenge
+            return await handle_captcha_challenge(self.page, timeout_seconds=timeout_seconds)
+        except Exception as exc:
+            self.logger.debug("[CAPTCHA] Handler check skipped: %s", exc)
+            return True
+
+    async def verify_and_reinject(
+        self,
+        checks: list[tuple[str, Locator | str, str]],
+    ) -> int:
+        """Verify that filled fields were not cleared by React/SPA frontend re-renders.
+
+        Args:
+            checks: List of (field_name, locator_or_selector, expected_value) tuples.
+
+        Returns:
+            Count of fields that had to be re-injected.
+        """
+        reinjected_count = 0
+        for name, loc_target, expected in checks:
+            if not expected:
+                continue
+            loc = self.page.locator(loc_target) if isinstance(loc_target, str) else loc_target
+            try:
+                if await loc.count() > 0:
+                    current_val = await loc.input_value()
+                    if not current_val or current_val.strip() == "":
+                        self.logger.warning("[RE-INJECT] Field '%s' was cleared by page JS. Re-filling...", name)
+                        await loc.fill(expected)
+                        reinjected_count += 1
+            except Exception:
+                continue
+        return reinjected_count
+
+    def get_result(self) -> FillResult:
+        """Convenience alias for halt_for_review()."""
+        return self.halt_for_review()
 
     # ── Halt and report ───────────────────────────────────────────────────────
 

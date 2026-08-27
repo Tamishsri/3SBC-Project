@@ -41,6 +41,9 @@ class TaskItem:
     screenshot: bool = False
     webhook_url: str | None = None
     preset: str | None = None
+    allow_generic: bool = False
+    detect_captcha: bool = False
+    generate_cover_letter: bool = False
 
 
 @dataclass
@@ -92,7 +95,21 @@ class ConcurrentWorkerPool:
             try:
                 page = await session.create_isolated_page(item.job_url)
 
-                filler = await get_filler(page, candidate, human_mode=item.human_mode, multi_page=item.multi_page)
+                if item.detect_captcha:
+                    from src.captcha_detector import handle_captcha_challenge
+                    await handle_captcha_challenge(page)
+
+                if item.generate_cover_letter:
+                    from src.cover_letter_generator import augment_candidate_cover_letter
+                    candidate = await augment_candidate_cover_letter(candidate, page)
+
+                filler = await get_filler(
+                    page,
+                    candidate,
+                    human_mode=item.human_mode,
+                    multi_page=item.multi_page,
+                    allow_generic=item.allow_generic,
+                )
                 result = await filler.fill()
 
                 if item.screenshot:
@@ -106,6 +123,13 @@ class ConcurrentWorkerPool:
                     candidate,
                     source_file=item.data_file,
                     notes=f"User: {item.user_id} | Task: {item.task_id}",
+                )
+
+                from src.recovery import save_checkpoint
+                save_checkpoint(
+                    batch_dir=item.data_file.parent,
+                    completed_file=item.data_file.name,
+                    success=not result.has_failures,
                 )
 
                 if item.webhook_url:

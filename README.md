@@ -1,25 +1,29 @@
-# 🤖 ATS Form Filler v2.5 — Enterprise Semi-Automated Job Application Assistant
+# 🤖 ATS Form Filler v2.6 — Enterprise Semi-Automated Job Application Assistant
 
 > **⛔ CORE RULE: This tool NEVER auto-submits applications.** It fills recognized fields, auto-advances wizard steps if requested, and strictly halts for human review before final submission.
 
-A production-grade Python + Playwright automation suite designed to eliminate repetitive data entry on Applicant Tracking Systems (ATS). It connects seamlessly to your existing logged-in browser session via Chrome DevTools Protocol (CDP), fills form fields using structured candidate data, and **halts for you to review and submit manually**.
+A production-grade Python + Playwright automation suite designed to eliminate repetitive data entry on Applicant Tracking Systems (ATS) and web application portals. It connects seamlessly to your existing logged-in browser session via Chrome DevTools Protocol (CDP), fills form fields using structured candidate data, and **halts for you to review and submit manually**.
 
 ---
 
-## 🎯 Supported ATS Platforms
+## 🎯 Supported ATS Platforms & Web Forms
 
-| Platform | URL Pattern | Architecture | Status |
+| Platform | URL Pattern / Matcher | Architecture | Status |
 |---|---|---|---|
 | **Greenhouse** | `boards.greenhouse.io/*`, embedded iframes | Server-rendered & Iframe forms | ✅ Fully Supported |
 | **Lever** | `jobs.lever.co/*` | Dynamic modern forms | ✅ Fully Supported |
 | **Workday** | `*.myworkdayjobs.com/*`, `workday.com/*` | React SPA (`data-automation-id`) | ✅ Fully Supported |
 | **SmartRecruiters** | `careers.smartrecruiters.com/*` | React SPA (`data-test-id`) | ✅ Fully Supported |
+| **Generic Web Form** | Ashby, BambooHR, Jobvite, Taleo, Rippling, Custom Portals | HTML5 Semantic & Heuristic Matching (`--allow-generic`) | ✅ Fully Supported |
 
 ---
 
 ## 🚀 Key Features
 
-- **⚡ Multi-ATS Platform Support**: Built-in specialized fillers for Greenhouse (including iframe support), Lever, Workday, and SmartRecruiters.
+- **⚡ Multi-ATS & Generic Adaptive Engine (`--allow-generic`)**: Built-in specialized fillers for Greenhouse (with iframe support), Lever, Workday, SmartRecruiters, PLUS a semantic adaptive engine that handles arbitrary career pages worldwide.
+- **🛡️ Live CAPTCHA & Bot Challenge Interceptor (`--detect-captcha`)**: Detects Cloudflare Turnstile, Google reCAPTCHA, and hCaptcha, safely pausing with an audible alert for human resolution and auto-resuming once solved.
+- **✍️ Contextual Cover Letter Synthesis (`--generate-cover-letter`)**: Scrapes target company and role context from page metadata to automatically craft a tailored, high-impact cover letter.
+- **🔄 Fault-Tolerant Batch Recovery (`--resume-batch`)**: Checkpoints batch progress atomically to `.ats_batch_recovery.json` so interrupted multi-candidate runs resume seamlessly from the point of failure without duplicate work.
 - **🔔 Real-Time Webhook & Slack Alerts (`--webhook-url`)**: Non-blocking asynchronous notifications to Slack incoming webhooks, Discord, Zapier, or custom HTTP endpoints upon application staging.
 - **🎛️ User Preference Presets (`--save-preset`, `--use-preset`)**: Save and reuse standard Work Authorization, EEOC Demographics, custom answers, and cover letter templates with non-destructive merging.
 - **📄 Offline Local Resume Fallback Parser (`--parse-resume`)**: Built-in PDF/Text parser with regex & heuristics as a high-availability fallback when external parsing services are offline.
@@ -80,44 +84,56 @@ chrome --remote-debugging-port=9222 --user-data-dir="%TEMP%\chrome-debug-profile
 
 ### 2. Navigate to Application
 
-In the debug browser window, navigate to any job application page on Greenhouse, Lever, Workday, or SmartRecruiters.
+In the debug browser window, navigate to any job application page on Greenhouse, Lever, Workday, SmartRecruiters, or any unlisted job portal.
 
 ### 3. Run Commands
 
 ```bash
 # --- Standard Single-Candidate Fill ---
-python -m src.main --data-file sample_candidate.json
+python -m src.main --data-file sample_resume.json
 
 # --- Human-like Typing Mode (Recommended for bot-detection avoidance) ---
-python -m src.main --data-file sample_candidate.json --human-mode
+python -m src.main --data-file sample_resume.json --human-mode
+
+# --- Generic Adaptive Fallback for Unlisted ATS Portals (Ashby, BambooHR, etc.) ---
+python -m src.main --data-file sample_resume.json --allow-generic
+
+# --- Live Bot Challenge & CAPTCHA Interceptor ---
+python -m src.main --data-file sample_resume.json --detect-captcha
+
+# --- Contextual Cover Letter Synthesis from Live Page ---
+python -m src.main --data-file sample_resume.json --generate-cover-letter
 
 # --- Multi-Page Wizard Mode (Auto-advance steps on Workday/SmartRecruiters) ---
-python -m src.main --data-file sample_candidate.json --multi-page
+python -m src.main --data-file sample_resume.json --multi-page
 
 # --- Real-Time Slack / Discord / Webhook Alerts ---
-python -m src.main --data-file sample_candidate.json --webhook-url https://hooks.slack.com/services/...
+python -m src.main --data-file sample_resume.json --webhook-url https://hooks.slack.com/services/...
 
 # --- Save and Use Preference Presets ---
-python -m src.main --save-preset default_us --data-file sample_candidate.json
+python -m src.main --save-preset default_us --data-file sample_resume.json
 python -m src.main --list-presets
 python -m src.main --data-file minimal_candidate.json --use-preset default_us
 
 # --- Extract Candidate Data Directly from Raw Resume (PDF / TXT) ---
-python -m src.main --parse-resume my_resume.pdf
-python -m src.main --verify-contract my_resume.json
+python -m src.main --parse-resume sample_resume.txt
+python -m src.main --verify-contract sample_resume.json
 
 # --- Start Interactive Live Dashboard Web Server ---
 python -m src.main --serve-dashboard --dashboard-port 8080
 
 # --- Verify Parser Contract (For Teammate Saran) ---
-python -m src.main --verify-contract sample_candidate.json
+python -m src.main --verify-contract sample_resume.json
 
 # --- Data Completeness & Quality Validation ---
-python -m src.main --data-file sample_candidate.json --validate-only
+python -m src.main --data-file sample_resume.json --validate-only
 python -m src.main --batch-dir samples/ --validate-only
 
 # --- High-Throughput Batch Processing with Parallel Workers ---
 python -m src.main --batch-dir samples/ --concurrency 3 --user-id recruiter_1 --multi-page
+
+# --- Resume Interrupted Batch Processing ---
+python -m src.main --batch-dir samples/ --resume-batch
 
 # --- ATS Form Health Check (Selector Diagnostic) ---
 python -m src.main --check-selectors
@@ -141,6 +157,7 @@ python -m src.main --export-dashboard
 3sbc-project/
 ├── sample_candidate.json             # Reference candidate JSON
 ├── sample_resume.txt                 # Reference raw resume document
+├── sample_resume.json                # Parsed reference candidate JSON
 ├── samples/                          # Sample candidate profiles for batch testing
 ├── presets/                          # User preference presets
 ├── requirements.txt                  # Python dependencies
@@ -158,6 +175,9 @@ python -m src.main --export-dashboard
 │   ├── presets.py                    # User preference presets manager
 │   ├── resume_fallback.py            # Local PDF/TXT resume fallback parser
 │   ├── server.py                     # Embedded live dashboard HTTP server
+│   ├── captcha_detector.py           # Live Turnstile / reCAPTCHA / bot challenge detector
+│   ├── cover_letter_generator.py     # Contextual cover letter synthesis engine
+│   ├── recovery.py                   # Batch session recovery & state checkpointer
 │   ├── api_client.py                 # Async backend API client
 │   ├── browser.py                    # Playwright CDP session manager
 │   ├── ats_router.py                 # ATS platform detection & routing
@@ -172,11 +192,12 @@ python -m src.main --export-dashboard
 │   ├── batch.py                      # Batch runner with rate limiting
 │   ├── worker_pool.py                # Parallel worker pool with concurrency control
 │   └── fillers/
-│       ├── base.py                   # Abstract base class (retry, scroll, human type, compliance, Q&A)
+│       ├── base.py                   # Abstract base class (retry, scroll, human type, compliance, Q&A, re-injection)
 │       ├── greenhouse.py             # Greenhouse ATS filler (with iframe support)
 │       ├── lever.py                  # Lever ATS filler
 │       ├── workday.py                # Workday ATS filler
-│       └── smartrecruiters.py        # SmartRecruiters ATS filler
+│       ├── smartrecruiters.py        # SmartRecruiters ATS filler
+│       └── generic.py                # Adaptive generic web form filler
 └── tests/
     ├── test_models.py                # Pydantic model validation tests
     ├── test_normalizer.py            # Phone, location, unicode tests
@@ -197,18 +218,22 @@ python -m src.main --export-dashboard
     ├── test_notifier.py              # Webhook & Slack alerts tests
     ├── test_presets.py               # User preference presets tests
     ├── test_resume_fallback.py       # Local PDF/TXT parser fallback tests
-    └── test_server.py                # Live dashboard HTTP server tests
+    ├── test_server.py                # Live dashboard HTTP server tests
+    ├── test_generic_filler.py        # Adaptive generic web form filler tests
+    ├── test_captcha_detector.py      # Turnstile / reCAPTCHA detector tests
+    ├── test_cover_letter_generator.py # Contextual cover letter synthesis tests
+    └── test_recovery.py              # Batch checkpointing & recovery tests
 ```
 
 ---
 
-## 🧪 Running Tests
+## 🧪 Running Tests & Benchmarks
 
 ```bash
-# Run full automated test suite (127 tests across 19 test modules):
+# Run full automated test suite (142 tests across 23 test modules - 100% Passing):
 python -m pytest tests/ -v
 
-# Run enterprise performance benchmark:
+# Run enterprise performance & stress benchmark:
 python scripts/benchmark_stress.py
 ```
 

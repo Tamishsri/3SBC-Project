@@ -16,11 +16,12 @@ from src.fillers.greenhouse import GreenhouseFiller
 from src.fillers.lever import LeverFiller
 from src.fillers.workday import WorkdayFiller
 from src.fillers.smartrecruiters import SmartRecruitersFiller
+from src.fillers.generic import GenericAdaptiveFiller
 from src.models import CandidateData
 
 logger = logging.getLogger(__name__)
 
-# Registry of all available ATS fillers, checked in order
+# Registry of specialized ATS fillers, checked in prioritized order
 _FILLER_CLASSES: list[type[ATSFormFiller]] = [
     GreenhouseFiller,
     LeverFiller,
@@ -35,11 +36,13 @@ async def get_filler(
     *,
     human_mode: bool = False,
     multi_page: bool = False,
+    allow_generic: bool = False,
 ) -> ATSFormFiller:
     """Detect the ATS platform and return the appropriate filler.
 
     Iterates through registered fillers and returns the first one
-    whose detect() method returns True.
+    whose detect() method returns True. If none match and allow_generic
+    is True, falls back to GenericAdaptiveFiller.
 
     Args:
         page: The Playwright page with the ATS application form.
@@ -48,6 +51,8 @@ async def get_filler(
                     simulate human input and reduce bot-detection risk.
         multi_page: If True, fillers auto-advance through multi-step
                     wizard forms up to the final review screen.
+        allow_generic: If True, uses GenericAdaptiveFiller when no
+                       specialized platform matches.
 
     Returns:
         An ATSFormFiller instance ready to fill the form.
@@ -65,7 +70,15 @@ async def get_filler(
             return filler
         logger.debug("   Not %s", filler_cls.platform_name)
 
+    if allow_generic:
+        generic_filler = GenericAdaptiveFiller(page=page, candidate=candidate, human_mode=human_mode, multi_page=multi_page)
+        if await generic_filler.detect():
+            logger.info("[OK] Using Adaptive Generic Web Form filler for: %s", url)
+            return generic_filler
+
     supported = [cls.platform_name for cls in _FILLER_CLASSES]
+    if allow_generic:
+        supported.append(GenericAdaptiveFiller.platform_name)
     raise UnsupportedATSError(url=url, supported=supported)
 
 

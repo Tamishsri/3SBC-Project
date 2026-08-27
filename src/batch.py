@@ -52,6 +52,9 @@ async def process_single_candidate(
     delay_seconds: float = 5.0,
     webhook_url: str | None = None,
     preset: str | None = None,
+    allow_generic: bool = False,
+    detect_captcha: bool = False,
+    generate_cover_letter: bool = False,
 ) -> BatchResult:
     """Process a single candidate JSON file.
 
@@ -65,6 +68,9 @@ async def process_single_candidate(
         delay_seconds: Seconds to wait BEFORE this candidate (rate limiting).
         webhook_url: Optional webhook URL to send completion notifications.
         preset: Optional user preference preset name to merge.
+        allow_generic: Enable adaptive generic web form filler fallback.
+        detect_captcha: Detect and pause for bot challenges.
+        generate_cover_letter: Dynamically synthesize personalized cover letter from page.
 
     Returns:
         BatchResult with outcome details.
@@ -98,7 +104,21 @@ async def process_single_candidate(
                 except Exception as e:
                     logger.warning("[BATCH] Navigation warning for %s: %s", name, e)
 
-            filler = await get_filler(page, candidate, human_mode=human_mode, multi_page=multi_page)
+            if detect_captcha:
+                from src.captcha_detector import handle_captcha_challenge
+                await handle_captcha_challenge(page)
+
+            if generate_cover_letter:
+                from src.cover_letter_generator import augment_candidate_cover_letter
+                candidate = await augment_candidate_cover_letter(candidate, page)
+
+            filler = await get_filler(
+                page,
+                candidate,
+                human_mode=human_mode,
+                multi_page=multi_page,
+                allow_generic=allow_generic,
+            )
             result = await filler.fill()
 
             if screenshot:
@@ -107,6 +127,9 @@ async def process_single_candidate(
 
             save_report(result, candidate)
             append_to_tracker(result, candidate, json_path)
+
+            from src.recovery import save_checkpoint
+            save_checkpoint(batch_dir=json_path.parent, completed_file=json_path.name, success=not result.has_failures)
 
             if webhook_url:
                 from src.notifier import send_fill_notification
@@ -137,6 +160,7 @@ async def process_single_candidate(
             error=str(exc),
         )
     except Exception as exc:
+        logger.error("[BATCH] Error processing %s: %s", json_path.name, exc, exc_info=True)
         return BatchResult(
             file_path=json_path,
             candidate_name=name,
@@ -156,6 +180,10 @@ async def run_batch(
     delay_seconds: float = 5.0,
     webhook_url: str | None = None,
     preset: str | None = None,
+    allow_generic: bool = False,
+    detect_captcha: bool = False,
+    generate_cover_letter: bool = False,
+    resume: bool = False,
 ) -> list[BatchResult]:
     """Process all candidate JSON files in a directory.
 
@@ -172,14 +200,22 @@ async def run_batch(
         delay_seconds: Rate-limit delay between candidates.
         webhook_url: Optional webhook URL for notifications.
         preset: Optional user preference preset name to merge.
+        allow_generic: Enable adaptive generic web form filler fallback.
+        detect_captcha: Detect and pause for bot challenges.
+        generate_cover_letter: Dynamically synthesize personalized cover letter.
+        resume: Resume from last saved batch recovery checkpoint.
 
     Returns:
         List of BatchResult for each candidate processed.
     """
-    json_files = sorted(batch_dir.glob("*.json"))
+    if resume:
+        from src.recovery import get_remaining_batch_files
+        json_files = get_remaining_batch_files(batch_dir)
+    else:
+        json_files = sorted(batch_dir.glob("*.json"))
 
     if not json_files:
-        console.print(f"[yellow]No JSON files found in: {batch_dir}[/]")
+        console.print(f"[yellow]No pending JSON files found in: {batch_dir}[/]")
         return []
 
     console.print()
@@ -189,6 +225,8 @@ async def run_batch(
         f"Candidates: [bold]{len(json_files)}[/]\n"
         f"Rate limit: [dim]{delay_seconds}s between each[/]\n"
         f"Multi-page Wizard: [dim]{'ON' if multi_page else 'OFF'}[/]"
+        + (f"\nGeneric Fallback: [dim]ON[/]" if allow_generic else "")
+        + (f"\nResume Mode: [dim]ON[/]" if resume else "")
         + (f"\nPreset: [dim]{preset}[/]" if preset else "")
         + (f"\nWebhook: [dim]{webhook_url}[/]" if webhook_url else ""),
         title="[bold]Batch Processing",
@@ -219,6 +257,9 @@ async def run_batch(
                 delay_seconds=0.0 if is_first else delay_seconds,
                 webhook_url=webhook_url,
                 preset=preset,
+                allow_generic=allow_generic,
+                detect_captcha=detect_captcha,
+                generate_cover_letter=generate_cover_letter,
             )
             results.append(result)
             progress.advance(task)

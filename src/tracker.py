@@ -142,3 +142,7 @@ def load_tracker(log_path: Path | None = None) -> list[dict]:
     with FileLock(log_path):
         with log_path.open("r", encoding="utf-8") as f:
             return list(csv.DictReader(f))
+
+
+# Public export for context generators and diagnostics
+guess_company = _guess_company

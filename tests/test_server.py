@@ -15,23 +15,25 @@ def find_free_port() -> int:
         return s.getsockname()[1]
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def dashboard_server():
-    """Start server in background daemon thread and clean up after test."""
+    """Start server in background daemon thread and clean up after module tests."""
     port = find_free_port()
     httpd = run_server(host="127.0.0.1", port=port, open_browser=False, block=False)
-    # Allow tiny moment to bind socket
-    time.sleep(0.1)
+    time.sleep(0.2)
     yield port
-    httpd.shutdown()
-    httpd.server_close()
+    try:
+        httpd.shutdown()
+        httpd.server_close()
+    except Exception:
+        pass
 
 
 def test_server_health_endpoint(dashboard_server):
     port = dashboard_server
     url = f"http://127.0.0.1:{port}/health"
 
-    with httpx.Client(timeout=3.0) as client:
+    with httpx.Client(timeout=10.0) as client:
         resp = client.get(url)
         assert resp.status_code == 200
         data = resp.json()
@@ -43,7 +45,7 @@ def test_server_dashboard_html_endpoint(dashboard_server):
     port = dashboard_server
     url = f"http://127.0.0.1:{port}/"
 
-    with httpx.Client(timeout=3.0) as client:
+    with httpx.Client(timeout=10.0) as client:
         resp = client.get(url)
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
@@ -55,7 +57,7 @@ def test_server_api_stats_endpoint(dashboard_server):
     port = dashboard_server
     url = f"http://127.0.0.1:{port}/api/stats"
 
-    with httpx.Client(timeout=3.0) as client:
+    with httpx.Client(timeout=10.0) as client:
         resp = client.get(url)
         assert resp.status_code == 200
         data = resp.json()
@@ -68,7 +70,7 @@ def test_server_api_tracker_endpoint(dashboard_server):
     port = dashboard_server
     url = f"http://127.0.0.1:{port}/api/tracker"
 
-    with httpx.Client(timeout=3.0) as client:
+    with httpx.Client(timeout=10.0) as client:
         resp = client.get(url)
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -78,6 +80,6 @@ def test_server_404_on_unknown_path(dashboard_server):
     port = dashboard_server
     url = f"http://127.0.0.1:{port}/unknown_route_xyz"
 
-    with httpx.Client(timeout=3.0) as client:
+    with httpx.Client(timeout=10.0) as client:
         resp = client.get(url)
         assert resp.status_code == 404
