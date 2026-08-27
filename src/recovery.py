@@ -94,7 +94,7 @@ def get_remaining_batch_files(
         Filtered list of Path objects for remaining candidates.
     """
     target_dir = Path(batch_dir)
-    all_files = sorted(target_dir.glob("*.json"))
+    all_files = [f for f in sorted(target_dir.glob("*.json")) if not f.name.startswith(".")]
 
     checkpoint = load_recovery_checkpoint(recovery_path)
     if not checkpoint:

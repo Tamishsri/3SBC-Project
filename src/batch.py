@@ -212,7 +212,7 @@ async def run_batch(
         from src.recovery import get_remaining_batch_files
         json_files = get_remaining_batch_files(batch_dir)
     else:
-        json_files = sorted(batch_dir.glob("*.json"))
+        json_files = [f for f in sorted(batch_dir.glob("*.json")) if not f.name.startswith(".")]
 
     if not json_files:
         console.print(f"[yellow]No pending JSON files found in: {batch_dir}[/]")
