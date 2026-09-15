@@ -214,5 +214,8 @@ class LeverFiller(ATSFormFiller):
         if not advanced:
             await self.detect_next_page()
 
+        # In-browser visual review highlights & badge
+        await self.inject_review_overlay()
+
         # HALT — Never submit
         return self.halt_for_review()

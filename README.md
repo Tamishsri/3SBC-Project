@@ -1,4 +1,4 @@
-# 🤖 ATS Form Filler v2.7 — Enterprise Semi-Automated Job Application Assistant
+# 🤖 ATS Form Filler v2.8 — Enterprise Semi-Automated Job Application Assistant
 
 > **⛔ CORE RULE: This tool NEVER auto-submits applications.** It fills recognized fields, auto-advances wizard steps if requested, and strictly halts for human review before final submission.
 
@@ -20,6 +20,9 @@ A production-grade Python + Playwright automation suite designed to eliminate re
 
 ## 🚀 Key Features
 
+- **🎨 In-Browser Visual Field Highlighting & Review Badge**: Injects crisp green glows around filled fields, amber outlines on empty required fields, and an in-page floating status badge in Chrome showing exact fill counts and reminding the user of final manual review.
+- **🔢 Smart Numeric & Currency Sanitizer**: Cleans salary, years of experience, and notice period inputs (`$120,000` -> `120000`, `120k` -> `120000`, `1.5M` -> `1500000`, `30 days` -> `30`, `3.85 GPA` -> `3.85`, `$`, `€`, `£`, `₹`, `¥`) to prevent `<input type="number">` validation crashes.
+- **🎯 Resilient Fuzzy Dropdown Option Matcher**: Automatically falls back to case-insensitive and substring fuzzy matching when dropdown option text varies across ATS builds (e.g., `"United States"` matching `"United States of America"`).
 - **⚡ Multi-ATS & Generic Adaptive Engine (`--allow-generic`)**: Specialized fillers for Greenhouse (with iframe support), Lever, Workday, SmartRecruiters, PLUS an adaptive heuristic engine that handles arbitrary career pages worldwide.
 - **❓ Interactive Field Prompter & Learner (`--interactive`)**: Prompts in the terminal when unmapped company questions are encountered, fills them immediately, and persists answers into candidate profiles/presets for future applications.
 - **📥 Drop-Folder Inbox Watcher Daemon (`--watch-dir inbox/`)**: Background file watcher where dropping a resume (`.pdf`, `.txt`, `.json`) into `inbox/` automatically parses it and auto-fills your active Chrome tab.
@@ -244,7 +247,8 @@ python -m src.main --export-dashboard
     ├── test_recovery.py              # Batch checkpointing & recovery tests
     ├── test_interactive_prompter.py  # Interactive question prompter & learning tests
     ├── test_watcher.py               # Drop-folder inbox watcher daemon tests
-    └── test_team_mock_backend.py     # Team integration mock hub tests
+    ├── test_team_mock_backend.py     # Team integration mock hub tests
+    └── test_v28_features.py          # Numeric sanitizer, fuzzy dropdown & review badge tests
 ```
 
 ---
@@ -252,7 +256,7 @@ python -m src.main --export-dashboard
 ## 🧪 Running Tests & Benchmarks
 
 ```bash
-# Run full automated test suite (155 tests across 26 test modules - 100% Passing):
+# Run full automated test suite (187 tests across 27 test modules - 100% Passing):
 python -m pytest tests/ -v
 
 # Run ultra-heavy 7-vector stress & endurance benchmark:

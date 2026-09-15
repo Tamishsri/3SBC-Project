@@ -172,16 +172,36 @@ class ATSFormFiller(ABC):
                 await locator.wait_for(state="visible", timeout=timeout_ms)
                 await self._scroll_to_element(locator)
 
+                # Auto-sanitize for <input type="number"> fields
+                fill_value = value
+                try:
+                    input_type = await locator.get_attribute("type") or ""
+                    if input_type.lower() == "number":
+                        from src.normalizer import clean_numeric_input
+                        sanitized = clean_numeric_input(value)
+                        if sanitized and sanitized != value:
+                            self.logger.debug(
+                                "[SANITIZE] '%s': '%s' -> '%s' (numeric input)",
+                                field_name, value, sanitized,
+                            )
+                            fill_value = sanitized
+                except Exception:
+                    pass  # Non-critical; proceed with original value
+
                 if clear_first:
                     await locator.clear()
 
                 if self.human_mode:
-                    await self.human_type(locator, value)
+                    await self.human_type(locator, fill_value)
                 else:
-                    await locator.fill(value)
+                    await locator.fill(fill_value)
 
                 self.logger.info("[OK] Filled '%s'", field_name)
                 self._filled_fields.append(field_name)
+                try:
+                    await locator.evaluate("el => el.setAttribute('data-ats-filled', 'true')")
+                except Exception:
+                    pass
                 return True
 
             except PlaywrightTimeoutError:
@@ -378,13 +398,52 @@ class ATSFormFiller(ABC):
             await locator.wait_for(state="visible", timeout=timeout_ms)
             await self._scroll_to_element(locator)
 
-            # Try by label first, then by value
+            # Try by label first, then by value, then fuzzy substring match
+            selected_label = value
             try:
                 await locator.select_option(label=value)
             except PlaywrightError:
-                await locator.select_option(value=value)
+                try:
+                    await locator.select_option(value=value)
+                except PlaywrightError:
+                    # Resilient fuzzy matching fallback: inspect all <option> text
+                    try:
+                        options = await locator.locator("option").all_text_contents()
+                        lower_val = value.strip().lower()
+                        # 1. Exact case-insensitive match
+                        matched = next(
+                            (opt.strip() for opt in options if opt.strip().lower() == lower_val),
+                            None,
+                        )
+                        # 2. Substring match (e.g. "Male" in "Male / Man", or "United States" in "United States of America")
+                        if not matched:
+                            matched = next(
+                                (
+                                    opt.strip()
+                                    for opt in options
+                                    if lower_val in opt.lower()
+                                    or (len(opt.strip()) >= 3 and opt.strip().lower() in lower_val)
+                                ),
+                                None,
+                            )
+                        if matched:
+                            self.logger.info(
+                                "[FUZZY SELECT] Dropdown '%s': matched '%s' -> '%s'",
+                                field_name, value, matched,
+                            )
+                            await locator.select_option(label=matched)
+                            selected_label = matched
+                        else:
+                            raise
+                    except Exception:
+                        raise
 
-            self.logger.info("[OK] Selected '%s' for '%s'", value, field_name)
+            try:
+                await locator.evaluate("el => el.setAttribute('data-ats-filled', 'true')")
+            except Exception:
+                pass
+
+            self.logger.info("[OK] Selected '%s' for '%s'", selected_label, field_name)
             self._filled_fields.append(field_name)
             return True
 
@@ -726,7 +785,89 @@ class ATSFormFiller(ABC):
         """Convenience alias for halt_for_review()."""
         return self.halt_for_review()
 
-    # ── Halt and report ───────────────────────────────────────────────────────
+    async def inject_review_overlay(self) -> bool:
+        """Inject visual field outlines and floating review status badge in the browser page.
+
+        - Filled fields are given a distinct green glow/outline.
+        - Empty required inputs are given a dashed amber outline.
+        - A floating review banner is anchored at top-right confirming field counts
+          and reminding the user to inspect and submit manually.
+
+        Returns:
+            True if injection succeeded without errors.
+        """
+        script = f"""
+        (() => {{
+            try {{
+                // 1. Highlight filled elements in green
+                const filledEls = document.querySelectorAll('[data-ats-filled="true"]');
+                filledEls.forEach(el => {{
+                    el.style.outline = '2px solid #22c55e';
+                    el.style.boxShadow = '0 0 6px rgba(34, 197, 94, 0.4)';
+                    el.style.transition = 'outline 0.3s ease, box-shadow 0.3s ease';
+                }});
+
+                // 2. Highlight empty required fields in amber
+                const requiredEls = document.querySelectorAll('input[required], select[required], textarea[required], [aria-required="true"]');
+                requiredEls.forEach(el => {{
+                    if (!el.getAttribute('data-ats-filled') && !el.value) {{
+                        el.style.outline = '2px dashed #f59e0b';
+                    }}
+                }});
+
+                // 3. Remove existing review badge if present
+                const oldBadge = document.getElementById('ats-review-badge');
+                if (oldBadge) oldBadge.remove();
+
+                // 4. Inject floating review banner
+                const badge = document.createElement('div');
+                badge.id = 'ats-review-badge';
+                badge.innerHTML = `
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                        <span style="font-weight:700;color:#38bdf8;font-size:12px;letter-spacing:0.5px;">⚡ ATS FORM FILLER v2.8</span>
+                        <span style="background:#22c55e;color:#052e16;font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;">READY FOR REVIEW</span>
+                    </div>
+                    <div style="font-size:12px;color:#e2e8f0;margin-bottom:6px;display:flex;gap:10px;">
+                        <span>✅ Filled: <strong style="color:#4ade80;">{len(self._filled_fields)}</strong></span>
+                        <span>❌ Failed: <strong style="color:#f87171;">{len(self._failed_fields)}</strong></span>
+                        <span>⏩ Skipped: <strong style="color:#94a3b8;">{len(self._skipped_fields)}</strong></span>
+                    </div>
+                    <div style="font-size:11px;color:#cbd5e1;border-top:1px solid #334155;padding-top:4px;">
+                        👉 <em>Review all fields and click Submit manually.</em>
+                    </div>
+                `;
+                badge.setAttribute('style', `
+                    position: fixed !important;
+                    top: 16px !important;
+                    right: 16px !important;
+                    z-index: 2147483647 !important;
+                    background: #0f172a !important;
+                    color: #f8fafc !important;
+                    padding: 12px 16px !important;
+                    border-radius: 8px !important;
+                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4) !important;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+                    line-height: 1.4 !important;
+                    border: 1px solid #334155 !important;
+                    max-width: 320px !important;
+                    pointer-events: auto !important;
+                    cursor: default !important;
+                `);
+                document.body.appendChild(badge);
+                return true;
+            }} catch (e) {{
+                return false;
+            }}
+        }})();
+        """
+        try:
+            if hasattr(self.page, "evaluate"):
+                await self.page.evaluate(script)
+                self.logger.debug("[REVIEW OVERLAY] Injected visual review badge & field highlights.")
+                return True
+        except Exception as exc:
+            self.logger.debug("[REVIEW OVERLAY] Could not inject overlay: %s", exc)
+        return False
 
     def halt_for_review(self) -> FillResult:
         """Halt execution and report results for human review.
@@ -737,6 +878,14 @@ class ATSFormFiller(ABC):
         Returns:
             FillResult summarizing the fill operation.
         """
+        # Attempt background injection of in-browser review overlay
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                loop.create_task(self.inject_review_overlay())
+        except Exception:
+            pass
+
         result = FillResult(
             ats_platform=self.platform_name,
             page_url=self.page.url,

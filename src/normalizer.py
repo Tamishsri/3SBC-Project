@@ -192,3 +192,57 @@ def decompose_full_name(full_name: str) -> tuple[str, str]:
 
     # 3+ parts: first name is first token, last name is rest
     return (parts[0], " ".join(parts[1:]))
+
+
+def clean_numeric_input(value: str | int | float | None) -> str:
+    """Extract a clean, HTML5-valid numeric string from candidate text.
+
+    Handles real-world messy formats:
+    - Currency with symbols & commas: "$120,000" -> "120000", "₹15,00,000" -> "1500000"
+    - Abbreviated notations: "120k" / "$120K" -> "120000", "1.5M" -> "1500000"
+    - Numbers with trailing units: "30 days" -> "30", "5+ years" -> "5", "5.5 yrs" -> "5.5"
+    - GPA / Ratings: "3.85 GPA" -> "3.85", "4.0 / 4.0" -> "4.0"
+    - Decimals and negative numbers: "-5.2" -> "-5.2"
+
+    Args:
+        value: Input string, int, float, or None.
+
+    Returns:
+        Clean numeric string suitable for <input type="number">, or empty string.
+    """
+    if value is None:
+        return ""
+
+    s = str(value).strip()
+    if not s:
+        return ""
+
+    # Check for 'k' or 'm' multiplier before stripping letters
+    k_match = re.search(r"([\d,]+(?:\.\d+)?)\s*[kK]\b", s)
+    if k_match:
+        num_part = k_match.group(1).replace(",", "")
+        try:
+            val = float(num_part) * 1000
+            return str(int(val)) if val.is_integer() else str(val)
+        except ValueError:
+            pass
+
+    m_match = re.search(r"([\d,]+(?:\.\d+)?)\s*[mM]\b", s)
+    if m_match:
+        num_part = m_match.group(1).replace(",", "")
+        try:
+            val = float(num_part) * 1000000
+            return str(int(val)) if val.is_integer() else str(val)
+        except ValueError:
+            pass
+
+    # Strip currency symbols and commas
+    cleaned = re.sub(r"[\$,₹,€,£,¥]", "", s)
+    # Extract the first valid floating-point or integer number
+    match = re.search(r"[-+]?\d+(?:\.\d+)?", cleaned)
+    if match:
+        return match.group(0)
+
+    # Fallback: digits only
+    digits = re.sub(r"[^\d.]", "", s)
+    return digits

@@ -198,5 +198,8 @@ class SmartRecruitersFiller(ATSFormFiller):
         if not advanced:
             await self._check_for_next_page()
 
+        # In-browser visual review highlights & badge
+        await self.inject_review_overlay()
+
         # HALT — Never submit
         return self.halt_for_review()

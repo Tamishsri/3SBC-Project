@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -139,16 +140,15 @@ def load_tracker(log_path: Path | None = None) -> list[dict]:
     if not log_path.exists():
         return []
 
-    try:
-        with FileLock(log_path, timeout=1.0):
-            with log_path.open("r", encoding="utf-8", errors="replace") as f:
-                return list(csv.DictReader(f))
-    except Exception:
+    for _ in range(5):
         try:
             with log_path.open("r", encoding="utf-8", errors="replace") as f:
                 return list(csv.DictReader(f))
+        except (OSError, PermissionError):
+            time.sleep(0.05)
         except Exception:
             return []
+    return []
 
 
 # Public export for context generators and diagnostics

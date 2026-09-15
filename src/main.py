@@ -268,7 +268,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s v2.7 | ATS Form Filler | Semi-Automated | Never auto-submits",
+        version="%(prog)s v2.8 | ATS Form Filler | Semi-Automated | Never auto-submits",
     )
     parser.add_argument(
         "--debug",
@@ -910,7 +910,7 @@ def main() -> None:
     console.print(
         Panel(
             Text.from_markup(
-                "[bold cyan]ATS Form Filler v2.7[/]\n"
+                "[bold cyan]ATS Form Filler v2.8[/]\n"
                 "[dim]Semi-Automated | Human-Controlled | Multi-Page & Adaptive Web Intelligence[/]\n"
                 "[bold red][!] NEVER auto-submits - Final Review is Always Yours[/]"
             ),
