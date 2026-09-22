@@ -24,7 +24,11 @@ def build_html_dashboard_content() -> str:
     filled_fields_count: dict[str, int] = {}
 
     if reports_dir.exists():
-        for rp in reports_dir.glob("*.json"):
+        # Cap to the 200 most-recent reports to keep dashboard generation fast
+        # even when fill_reports/ accumulates thousands of files.
+        all_reports = [p for p in reports_dir.glob("*.json") if not p.name.startswith(".")]
+        recent_reports = sorted(all_reports, key=lambda p: p.stat().st_mtime, reverse=True)[:200]
+        for rp in recent_reports:
             try:
                 data = json.loads(rp.read_text(encoding="utf-8"))
                 for f in data.get("failed_fields", []):

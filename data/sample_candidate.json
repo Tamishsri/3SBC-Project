@@ -1,0 +1,73 @@
+{
+  "personal": {
+    "first_name": "Alex",
+    "last_name": "Mercer",
+    "email": "alex.mercer@example.com",
+    "phone": "+1-415-555-0199",
+    "location": "San Francisco, CA, USA",
+    "linkedin_url": "https://www.linkedin.com/in/alex-mercer-dev",
+    "github_url": "https://github.com/alexmercer-dev",
+    "website": "https://alexmercer.dev"
+  },
+  "work_experience": [
+    {
+      "job_title": "Senior Software Engineer",
+      "company": "CloudScale Systems",
+      "location": "San Francisco, CA",
+      "start_date": "2021-03-01",
+      "end_date": null,
+      "is_current": true,
+      "description": "Architected distributed microservices handling 10M+ daily events with Python, FastAPI, and Kubernetes."
+    },
+    {
+      "job_title": "Software Engineer",
+      "company": "Apex Dynamics",
+      "location": "Seattle, WA",
+      "start_date": "2018-06-01",
+      "end_date": "2021-02-28",
+      "is_current": false,
+      "description": "Built full-stack web applications using React, Python, and PostgreSQL."
+    }
+  ],
+  "education": [
+    {
+      "degree_level": "bachelor",
+      "degree_name": "Bachelor of Science in Computer Science",
+      "institution": "University of Washington",
+      "field_of_study": "Computer Science",
+      "start_date": "2014-09-01",
+      "end_date": "2018-05-30",
+      "gpa": "3.85"
+    }
+  ],
+  "skills": [
+    "Python",
+    "FastAPI",
+    "Playwright",
+    "TypeScript",
+    "PostgreSQL",
+    "Docker",
+    "Kubernetes",
+    "Git",
+    "CI/CD"
+  ],
+  "work_authorization": {
+    "us_authorized": true,
+    "require_sponsorship": false,
+    "future_sponsorship": false,
+    "security_clearance": false
+  },
+  "demographics": {
+    "gender": "Decline to self-identify",
+    "race_ethnicity": "Decline to self-identify",
+    "veteran_status": "I am not a protected veteran",
+    "disability_status": "No, I do not have a disability"
+  },
+  "custom_answers": {
+    "desired_salary": "$140,000",
+    "notice_period": "2 weeks",
+    "willing_to_relocate": "Yes",
+    "years_of_experience": "6 years",
+    "earliest_start_date": "Immediate"
+  }
+}

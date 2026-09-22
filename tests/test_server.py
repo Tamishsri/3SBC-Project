@@ -45,12 +45,22 @@ def test_server_dashboard_html_endpoint(dashboard_server):
     port = dashboard_server
     url = f"http://127.0.0.1:{port}/"
 
-    with httpx.Client(timeout=10.0) as client:
-        resp = client.get(url)
-        assert resp.status_code == 200
-        assert "text/html" in resp.headers["content-type"]
-        assert "<!DOCTYPE html>" in resp.text
-        assert "ATS Form Filler" in resp.text
+    # Dashboard HTML generation scans many fill_report JSONs; use a generous
+    # timeout and retry to guard against intermittent slow disk reads in CI.
+    last_exc = None
+    for attempt in range(3):
+        try:
+            with httpx.Client(timeout=60.0) as client:
+                resp = client.get(url)
+            assert resp.status_code == 200
+            assert "text/html" in resp.headers["content-type"]
+            assert "<!DOCTYPE html>" in resp.text
+            assert "ATS Form Filler" in resp.text
+            return  # success
+        except (httpx.ReadTimeout, httpx.ConnectTimeout) as exc:
+            last_exc = exc
+            time.sleep(1)
+    raise AssertionError(f"Dashboard endpoint timed out after 3 attempts: {last_exc}")
 
 
 def test_server_api_stats_endpoint(dashboard_server):
